@@ -7,52 +7,114 @@
     <link rel="stylesheet" href="./assets/style.css">
 </head>
 <body>
-    <header class="hero">
+    <header class="page-head">
         <div class="container">
-            <h1>Timber Engineering: Sbírka přípojů</h1>
-            <p>Interaktivní katalog ručních výpočtů, programových šablon (Excel, SMath) a webových modelů dle Eurokódu 5.</p>
+            <h1>Timber Engineering: HTML Calculators</h1>
+            <p class="intro">Collection of my interactive calculators. Each card shows a sketch of the checked detail. Click a button to open the calculation in a new tab. The checks follow EN 1995-1-1 and EN 1990 (and EN 1993-1-8 for steel plates).</p>
         </div>
     </header>
 
     <main class="container">
         <section class="grid">
 
-            <!-- VZOR 1: Váš první vzorový příklad -->
+            <!-- EXAMPLE 1: Floor beam – simply supported beam, choice of the cross-section -->
             <article class="card">
-                <div class="card-badge">Vzorový příklad od vyučujícího</div>
-                <h2>01. Axiálně zatížený vrut v měkkém dřevě</h2>
-                <p>Posouzení únosnosti vrutu namáhaného na vytažení z vláken dřeva. Včetně vlivu úhlu vláken a hlavy vrutu.</p>
-                <div class="card-links">
-                    <a href="./01_Vzor_Vrut_Tah/zadani_a_rucni_vypocet.pdf" target="_blank" class="btn btn-pdf">PDF Ruční výpočet</a>
-                    <a href="./01_Vzor_Vrut_Tah/vypocet_smath.sm" class="btn btn-smath">SMath Studio</a>
-                    <a href="./01_Vzor_Vrut_Tah/vypocet_excel.xlsx" class="btn btn-excel">Excel šablona</a>
-                    <a href="./01_Vzor_Vrut_Tah/interaktivni_posudek.html" target="_blank" class="btn btn-web">Vibecoded HTML</a>
+                <div class="card-head">
+                    <span class="card-badge">Example 1</span>
+                    <span class="card-tag">beam</span>
                 </div>
+                <h2>01. Floor beam – simply supported beam</h2>
+                <figure class="sketch">
+                    <img src="./01_Floor_Beam/sketch.svg" alt="Sketch: simply supported floor beam with loads and the cross-section">
+                </figure>
+                <p>Tries every common cross-section and checks bending (with lateral torsional buckling), shear and deflection for all load combinations (EN 1990). Recommends the lightest section that works.</p>
+                <div class="card-links">
+                    <a href="./01_Floor_Beam/floor-beam.pdf" target="_blank" class="btn btn-pdf">PDF Ruční výpočet</a>
+                    <a href="./01_Floor_Beam/floor-beam.xlsx" class="btn btn-excel">Excel / SMath</a>
+                    <a href="./01_Floor_Beam/floor-beam.html" target="_blank" class="btn btn-web">Vibecoded HTML ↗</a>
+                </div>
+                <div class="file">01_Floor_Beam/</div>
             </article>
 
             <!-- VZOR 2: Váš druhý vzorový příklad -->
             <article class="card">
-                <div class="card-badge">Vzorový příklad od vyučujícího</div>
-                <h2>02. Svorníkový přípoj namáhaný na smyk</h2>
-                <p>Jednostřižný a dvoustřižný ocelový svorníkový přípoj s posouzením otlačení a plastické únosnosti oceli.</p>
-                <div class="card-links">
-                    <a href="./02_Vzor_Svornik_Smyk/zadani_a_rucni_vypocet.pdf" target="_blank" class="btn btn-pdf">PDF Ruční výpočet</a>
-                    <a href="./02_Vzor_Svornik_Smyk/vypocet_smath.sm" class="btn btn-smath">SMath Studio</a>
-                    <a href="./02_Vzor_Svornik_Smyk/vypocet_excel.xlsx" class="btn btn-excel">Excel šablona</a>
-                    <a href="./02_Vzor_Svornik_Smyk/interaktivni_posudek.html" target="_blank" class="btn btn-web">Vibecoded HTML</a>
+                <div class="card-head">
+                    <span class="card-badge">Example 2</span>
+                    <span class="card-tag">connection</span>
                 </div>
+                <h2>02. Step joint calculator</h2>
+                <figure class="sketch">
+                    <img src="./02_Step_Joint_calculator/sketch.svg" alt="Sketch: step joint (front notch)">
+                </figure>
+                <p>Step joint (front notch) – softwood, just one type.</p>
+                <div class="card-links">
+                    <!-- <a href="./02_Vzor_Svornik_Smyk/zadani_a_rucni_vypocet.pdf" target="_blank" class="btn btn-pdf">PDF Ruční výpočet</a>-->
+                    <!-- <a href="./02_Vzor_Svornik_Smyk/vypocet_smath.sm" class="btn btn-smath">SMath Studio</a>-->
+                    <!-- <a href="./02_Vzor_Svornik_Smyk/vypocet_excel.xlsx" class="btn btn-excel">Excel šablona</a>-->
+                    <a href="./02_Step_Joint_calculator/Step_Joint_calculator.pdf" target="_blank" class="btn btn-pdf">PDF Ruční výpočet</a>
+                    <span class="btn btn-excel btn-soon" title="Excel / SMath – připravuje se">připravuje se</span>
+                    <a href="./02_Step_Joint_calculator/Step_Joint_calculator.html" target="_blank" class="btn btn-web">Vibecoded HTML ↗</a>
+                </div>
+                <div class="file">02_Step_Joint_calculator/</div>
+            </article>
+
+            <!-- EXAMPLE 3: Laterally loaded screw, timber to timber -->
+            <article class="card">
+                <div class="card-head">
+                    <span class="card-badge">Example 3</span>
+                    <span class="card-tag">screws</span>
+                </div>
+                <h2>03. Laterally loaded screw – timber to timber</h2>
+                <figure class="sketch">
+                    <img src="./03_Screw_Lateral_Timber/sketch.svg" alt="Sketch: laterally loaded screw, timber to timber">
+                </figure>
+                <p>One screw in single shear between two timber members – failure modes (Johansen), edge and end distances. Exports to PDF, DXF, SVG and Markdown.</p>
+                <div class="card-links">
+                    <span class="btn btn-pdf btn-soon" title="PDF Ruční výpočet – připravuje se">připravuje se</span>
+                    <span class="btn btn-excel btn-soon" title="Excel / SMath – připravuje se">připravuje se</span>
+                    <a href="./03_Screw_Lateral_Timber/screw-lateral-t2t.html" target="_blank" class="btn btn-web">Vibecoded HTML ↗</a>
+                </div>
+                <div class="file">03_Screw_Lateral_Timber/</div>
+            </article>
+
+            <!-- EXAMPLE 4: Laterally loaded screw, steel plate to timber -->
+            <article class="card">
+                <div class="card-head">
+                    <span class="card-badge">Example 4</span>
+                    <span class="card-tag">screws · steel</span>
+                </div>
+                <h2>04. Laterally loaded screw – steel plate to timber</h2>
+                <figure class="sketch">
+                    <img src="./04_Screw_Lateral_Timber_to_Steel/sketch.svg" alt="Sketch: laterally loaded screw, steel plate to timber">
+                </figure>
+                <p>One screw in single shear between an outer steel plate and timber – failure modes, timber distances and bearing of the plate (EN 1993-1-8).</p>
+                <div class="card-links">
+                    <span class="btn btn-pdf btn-soon" title="PDF Ruční výpočet – připravuje se">připravuje se</span>
+                    <span class="btn btn-excel btn-soon" title="Excel / SMath – připravuje se">připravuje se</span>
+                    <a href="./04_Screw_Lateral_Timber_to_Steel/screw-lateral-s2t.html" target="_blank" class="btn btn-web">Vibecoded HTML ↗</a>
+                </div>
+                <div class="file">04_Screw_Lateral_Timber_to_Steel/</div>
             </article>
 
             <!-- ŠABLONA PRO STUDENTY: Zde si studenti zkopírují kartu pro svůj úkol -->
+            <!-- Náčrt: uložte vlastní sketch.svg do své složky a změňte cestu u <img src="..."> -->
             <article class="card student-template">
-                <div class="card-badge student-badge">Šablona pro studenty</div>
-                <h2>03. [Příjmení] - Název Vašeho přípoje</h2>
+                <div class="card-head">
+                    <span class="card-badge student-badge">Šablona pro studenty</span>
+                    <span class="card-tag">connection</span>
+                </div>
+                <h2>05. [Příjmení] - Název Vašeho přípoje</h2>
+                <figure class="sketch">
+                    <img src="./assets/sketch_placeholder.svg" alt="Náčrt přípoje">
+                    <!-- <img src="./05_Reseni_Studenta/sketch.svg" alt="Náčrt přípoje"> -->
+                </figure>
                 <p>Zde popište své zadání, typ namáhání a použité materiály. Nezapomeňte upravit relativní cesty k souborům!</p>
                 <div class="card-links">
-                    <a href="./03_Reseni_Studenta/rucni_vypocet.pdf" target="_blank" class="btn btn-pdf">PDF Ruční výpočet</a>
-                    <a href="./03_Reseni_Studenta/vypocet.xlsx" class="btn btn-excel">Excel / SMath</a>
-                    <a href="./03_Reseni_Studenta/interaktivni_posudek.html" target="_blank" class="btn btn-web">Interaktivní HTML</a>
+                    <a href="./05_Reseni_Studenta/rucni_vypocet.pdf" target="_blank" class="btn btn-pdf">PDF Ruční výpočet</a>
+                    <a href="./05_Reseni_Studenta/vypocet.xlsx" class="btn btn-excel">Excel / SMath</a>
+                    <a href="./05_Reseni_Studenta/interaktivni_posudek.html" target="_blank" class="btn btn-web">Interaktivní HTML ↗</a>
                 </div>
+                <div class="file">05_Reseni_Studenta/</div>
             </article>
 
         </section>

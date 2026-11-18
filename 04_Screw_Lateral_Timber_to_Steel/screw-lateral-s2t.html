@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Laterally loaded screw, steel plate to timber – EN 1995-1-1</title>
+<!-- The look comes from assets/css/calc.css; it is linked by the start-up code at the end of the page. -->
+</head>
+<body>
+<div class="wrap">
+  <h1>Laterally loaded screw, steel plate to timber</h1>
+  <p class="sub">One screw in single shear between an outer steel plate and a timber member according to EN 1995-1-1:2004 + A1 + A2; the plate is checked in bearing according to EN 1993-1-8. In the simple mode you enter the plate thickness, the screw diameter and length; the other data follow from typical proportions. Switch to the detailed mode to enter your own values.</p>
+  <p class="bootmsg" id="bootmsg" hidden>The shared files were not found, so the calculator cannot start. Keep the folder <b>assets</b> next to the folder of this page (see README.md), or open the page online.</p>
+
+  <div class="layout">
+    <div class="side">
+      <form class="panel" id="inputs" autocomplete="off" onsubmit="return false"></form>
+      <div class="toolbar" id="toolbar">
+        <button type="button" class="primary wide" id="btnSave">Save copy with these values</button>
+        <button type="button" class="wide strong" id="btnPrint">Print to PDF</button>
+        <button type="button" class="strong" id="btnDxf">Export DXF</button>
+        <button type="button" class="strong" id="btnSvg">Export SVG</button>
+        <button type="button" class="wide strong" id="btnMd">Export to Markdown</button>
+        <button type="button" id="btnExample">Load the example</button>
+        <button type="button" id="btnClear">Clear all</button>
+        <button type="button" class="wide" id="btnCalc" aria-controls="calc">Hide calculation</button>
+      </div>
+    </div>
+
+    <div class="stack">
+      <ul class="warns" id="warns"></ul>
+      <div class="top">
+        <div class="panel">
+          <h2>Failure mode</h2>
+          <div class="drawing" id="sketch"></div>
+          <p class="caption" id="caption"></p>
+          <div class="legend">
+            <span><i style="background:var(--signal);opacity:.55"></i>crushed timber (embedment)</span>
+            <span><i style="background:var(--void)"></i>gap behind the screw</span>
+            <span><i style="background:var(--panel);border:2px solid var(--signal);width:10px;border-radius:50%"></i>plastic hinge</span>
+            <span>Slip is exaggerated.</span>
+          </div>
+        </div>
+        <div class="panel result" id="result"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Capacity of each failure mode</h2>
+        <div class="scroll"><table class="modes" id="modes"></table></div>
+        <p class="hint">Modes (a) and (b) are for a thin plate (t<sub>s</sub> ≤ 0.5 d), modes (c) to (e) for a thick plate (t<sub>s</sub> ≥ d). In between both sets are shown and the capacity is interpolated. Select a row to draw that mode to scale above.</p>
+      </div>
+
+      <div class="panel">
+        <h2>Steel plate: distances and bearing (EN 1993-1-8)</h2>
+        <div class="scroll" id="plate"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Edge and end distances in the timber</h2>
+        <div class="scroll" id="dist"></div>
+      </div>
+
+      <details class="panel" id="calc" open>
+        <summary>Calculation with units</summary>
+        <div class="steps" id="steps"></div>
+        <p class="hint" id="mjstatus">Loading MathJax…</p>
+      </details>
+    </div>
+  </div>
+</div>
+
+<script id="saved" type="application/json">null</script>
+<script>
+var SRC='<!DOCTYPE html>\n'+document.documentElement.outerHTML;
+
+/* ================================================================
+   START-UP
+   The shared files (CSS, helpers, MathJax, exports) are in the folder
+   "assets" of the repository. The first address that works is used.
+   The last one is the published repository, so a copy of this page
+   saved anywhere else still works when online.
+   The last address is the published copy on GitHub Pages (peseac/Structural-Engineering).
+   ================================================================ */
+var ASSET_BASES=['../assets/','assets/','https://peseac.github.io/Structural-Engineering/assets/'];
+(function boot(k){
+  var s=document.createElement('script');
+  s.src=ASSET_BASES[k]+'js/calc-core.js';
+  s.onload=function(){CalcCore.start(ASSET_BASES[k],main);};
+  s.onerror=function(){s.remove();if(k+1<ASSET_BASES.length)boot(k+1);else document.getElementById('bootmsg').hidden=false;};
+  document.head.appendChild(s);
+})(0);
+
+/* ================================================================
+   1. CALCULATION – EN 1995-1-1 (8.9, 8.10) and EN 1993-1-8 (bearing)
+   Input i: values of the form. Output r: all intermediate results.
+   ================================================================ */
+function calc(i){
+  var r={inp:i,warn:[],err:null};
+  var need=['d','d1','ds','l','lg','fu','ftens','ts','fup','d0','e1','e2','rho2','rhom2','kmod','gM','gM2'];
+  for(var k=0;k<need.length;k++){if(!(i[need[k]]>0)){r.err='Fill in every input with a positive value, or load the example. Own densities of a custom timber are entered in the detailed mode.';return r;}}
+  var A2=i.a2||0;
+  if(A2<0||A2>90){r.err='Enter a load-to-grain angle between 0° and 90°.';return r;}
+  r.t2=i.l-i.ts;
+  if(r.t2<=0){r.err='The screw is not longer than the thickness of the steel plate. Use a longer screw or a thinner plate.';return r;}
+  if(i.lg>i.l){r.err='The thread length l<sub>g</sub> cannot exceed the screw length l.';return r;}
+  if(i.d1>=i.d){r.err='The thread root diameter d<sub>1</sub> must be smaller than the outer thread diameter d.';return r;}
+  if(i.d0<i.ds){r.err='The hole diameter d<sub>0</sub> is smaller than the screw diameter in the hole d<sub>s</sub>.';return r;}
+  var d=i.d,def=1.1*i.d1,rad=Math.PI/180;
+  r.def=def;r.nail=d<=6;
+  /* embedment strength of the timber: nail rules for d <= 6 mm, bolt rules above */
+  r.k902=(i.hard2?0.90:1.35)+0.015*def;
+  if(r.nail)r.fh2=i.predrilled?0.082*(1-0.01*def)*i.rho2:0.082*i.rho2*Math.pow(def,-0.3);
+  else{var s=Math.sin(A2*rad),c=Math.cos(A2*rad);r.fh2=0.082*(1-0.01*def)*i.rho2/(r.k902*s*s+c*c);}
+  r.MyDeclared=i.My>0;
+  r.My=r.MyDeclared?i.My:0.3*i.fu*Math.pow(def,2.6);
+  /* axial capacity for the rope effect; no head pull-through under a steel plate */
+  r.lef=Math.min(i.lg,r.t2);
+  r.fax=0.52*Math.pow(d,-0.5)*Math.pow(r.lef,-0.1)*Math.pow(i.rho2,0.8);
+  r.kd=Math.min(d/8,1);
+  r.Fthread=r.fax*d*r.lef*r.kd;
+  r.Fax=Math.min(r.Fthread,i.ftens);
+  r.rope=r.Fax/4;
+  /* modes for a thin plate (8.9) and a thick plate (8.10) */
+  var f2=r.fh2,t2=r.t2,My=r.My;
+  function mk(id,label,J,fac,noRope,desc,group){
+    var rope=noRope?0:Math.min(r.rope,J);
+    return {id:id,label:label,J:J,rope:rope,F:J+rope,fac:fac,desc:desc,group:group,limited:!noRope&&rope<r.rope-1e-9,tag:''};
+  }
+  function least(list){return list.reduce(function(m,x){return x.F<m.F?x:m;});}
+  r.B=f2*t2*def;r.sd=Math.sqrt(2+4*My/(f2*def*t2*t2));r.sb=Math.sqrt(2*My*f2*def);r.se=Math.sqrt(My*f2*def);
+  var all=[
+    mk('sa','a',0.4*r.B,1,true,'Thin plate: the screw rotates in the timber. Embedment failure in the timber.','thin'),
+    mk('sb','b',1.15*r.sb,1.15,false,'Thin plate: one plastic hinge in the timber.','thin'),
+    mk('sc','c',r.B,1,true,'Thick plate: embedment failure in the timber. The screw stays straight.','thick'),
+    mk('sd','d',r.B*(r.sd-1),1,false,'Thick plate: one plastic hinge at the plate. The screw rotates in the timber.','thick'),
+    mk('se','e',2.3*r.se,1.15,false,'Thick plate: two plastic hinges, at the plate and in the timber.','thick')];
+  var thin=all.slice(0,2),thick=all.slice(2);
+  /* plate type (cl. 8.2.3(1)): thick needs t_s >= d and a hole clearance of at most 0.1 d */
+  r.ratio=i.ts/d;r.clear=i.d0-i.ds;r.tolLim=0.1*d;r.tolOk=r.clear<=r.tolLim+1e-9;
+  r.tolDown=r.ratio>0.5&&!r.tolOk;
+  r.plate=(r.ratio<=0.5||r.tolDown)?'thin':(r.ratio>=1?'thick':'mid');
+  r.govThin=least(thin);r.govThick=least(thick);r.Fthin=r.govThin.F;r.Fthick=r.govThick.F;
+  if(r.plate==='thin'){r.modes=thin;r.gov=r.govThin;r.gov.tag='governs';r.FvRk=r.Fthin;r.govLabel='('+r.gov.label+'), thin plate';}
+  else if(r.plate==='thick'){r.modes=thick;r.gov=r.govThick;r.gov.tag='governs';r.FvRk=r.Fthick;r.govLabel='('+r.gov.label+'), thick plate';}
+  else{
+    r.modes=all;r.govThin.tag='governs (thin)';r.govThick.tag='governs (thick)';
+    r.kint=(i.ts-0.5*d)/(0.5*d);
+    r.FvRk=r.Fthin+(r.Fthick-r.Fthin)*r.kint;
+    r.gov=r.ratio<0.75?r.govThin:r.govThick;
+    r.govLabel='('+r.govThin.label+') and ('+r.govThick.label+'), interpolated';
+  }
+  r.FvRd=i.kmod*r.FvRk/i.gM;
+  /* steel plate, EN 1993-1-8: minimum distances (Table 3.3) and bearing (Table 3.4, cl. 3.6.1(10)) */
+  r.emin=1.2*i.d0;
+  r.e1Ok=i.e1>=r.emin-1e-9;r.e2Ok=i.e2>=r.emin-1e-9;
+  r.ad=i.e1/(3*i.d0);r.fr=i.fu/i.fup;
+  r.ab=Math.min(r.ad,r.fr,1);
+  r.k1=Math.max(0,Math.min(2.8*i.e2/i.d0-1.7,2.5));
+  r.Fb1=r.k1*r.ab*i.fup*i.ds*i.ts/i.gM2;
+  r.Fb2=1.5*i.fup*i.ds*i.ts/i.gM2;
+  r.FbRd=Math.min(r.Fb1,r.Fb2);
+  r.plateStatus=(r.e1Ok&&r.e2Ok)?'ok':'bad';
+  r.FRd=Math.min(r.FvRd,r.FbRd);r.plateGov=r.FbRd<r.FvRd;
+  r.util=i.FEd>0?i.FEd/r.FRd:null;
+  r.utilT=i.FEd>0?i.FEd/r.FvRd:null;
+  r.utilP=i.FEd>0?i.FEd/r.FbRd:null;
+  /* slip modulus (Table 7.1), doubled for steel to timber (cl. 7.1(3)) */
+  r.rhom=i.rhom2;
+  r.Kser=2*Math.pow(r.rhom,1.5)*d/23;r.Ku=2/3*r.Kser;
+  /* minimum distances in the timber: Table 8.2 (nails, a1 and a2 x 0.7 with steel plates, cl. 8.3.1.2(3)) or Table 8.4 (bolts) */
+  var al=A2,cs=Math.cos(al*rad),sn=Math.sin(al*rad),T,rho=i.rho2;
+  if(r.nail){
+    if(i.predrilled)T={a1:[4,1,'cos'],a2:[3,1,'sin'],a3t:[7,5,'cos'],a3c:[7,0],a4t:d<5?[3,2,'sin']:[3,4,'sin'],a4c:[3,0]};
+    else if(rho<=420)T={a1:d<5?[5,5,'cos']:[5,7,'cos'],a2:[5,0],a3t:[10,5,'cos'],a3c:[10,0],a4t:d<5?[5,2,'sin']:[5,5,'sin'],a4c:[5,0]};
+    else if(rho<=500)T={a1:[7,8,'cos'],a2:[7,0],a3t:[15,5,'cos'],a3c:[15,0],a4t:d<5?[7,2,'sin']:[7,5,'sin'],a4c:[7,0]};
+    else T=null;
+  }else T={a1:[4,1,'cos'],a2:[4,0],a3t:[7,0,null,0,80],a3c:[1,6,'sin',4],a4t:[2,2,'sin',3],a4c:[3,0]};
+  var nOk=0,nBad=0,m={n:2,alpha:al,rho:rho,T:T,items:[]};
+  if(T){
+    Object.keys(T).forEach(function(k){
+      var t=T[k],v=(t[0]+(t[1]?t[1]*(t[2]==='cos'?cs:sn):0))*d,red=(r.nail&&(k==='a1'||k==='a2'))?0.7:1;
+      if(t[3])v=Math.max(v,t[3]*d);
+      if(t[4])v=Math.max(v,t[4]);
+      T[k]={key:k,c0:t[0],c1:t[1],trig:t[2],fc:t[3]||0,fmm:t[4]||0,red:red,req:v*red};
+    });
+    ['a3t','a3c','a4t','a4c'].forEach(function(k){
+      var prov=i['e'+k.slice(1)+'2'],it=T[k];
+      it.prov=isFinite(prov)?prov:null;
+      it.ok=it.prov===null?null:it.prov>=it.req-1e-9;
+      if(it.ok===true)nOk++;if(it.ok===false)nBad++;
+      m.items.push(it);
+    });
+  }else nBad++;
+  r.dist=m;
+  r.distStatus=nBad?'bad':(nOk?'ok':'none');
+  /* warnings */
+  if(nBad)r.warn.push('An edge or end distance in the timber is smaller than the minimum, or predrilling is required. See “Edge and end distances in the timber”.');
+  if(!r.e1Ok||!r.e2Ok)r.warn.push('An end or edge distance in the steel plate is smaller than 1.2 · d<sub>0</sub> = '+r.emin.toFixed(1)+' mm (EN 1993-1-8, Table 3.3).');
+  if(r.tolDown)r.warn.push('The hole clearance d<sub>0</sub> − d<sub>s</sub> = '+r.clear.toFixed(1)+' mm exceeds 0.1 · d = '+r.tolLim.toFixed(1)+' mm, so the plate cannot count as thick or intermediate (cl. 8.2.3(1)). The thin-plate equations (8.9) are used.');
+  if(i.d0<d)r.warn.push('The hole d<sub>0</sub> = '+i.d0+' mm is smaller than the outer thread diameter d = '+d+' mm, so the thread cannot pass through the plate.');
+  var ratio=i.d1/d;
+  if(d<6||d>12||ratio<0.6||ratio>0.75)r.warn.push('Eq. (8.38) for withdrawal is valid for 6 ≤ d ≤ 12 mm and 0.6 ≤ d₁/d ≤ 0.75. Outside this range use the withdrawal parameter declared by the manufacturer.');
+  if(r.nail&&!i.predrilled&&rho>500)r.warn.push('Timber with ρ_k > 500 kg/m³ should be predrilled (cl. 8.3.1.1(2)).');
+  if(t2<6*d)r.warn.push('Penetration into the timber t₂ = '+t2.toFixed(0)+' mm is less than 6d = '+(6*d).toFixed(0)+' mm (cl. 8.7.2(3)).');
+  if(i.lg>t2)r.warn.push('The thread is longer than the penetration into the timber, so part of it lies in the plate. Only the part in the timber (l_ef = '+r.lef.toFixed(0)+' mm) counts for withdrawal.');
+  return r;
+}
+
+/* ================================================================
+   2. INPUTS
+   Items with adv:true appear only in the detailed mode; their default
+   is computed by auto() from the values above them (see calc-core.js).
+   ================================================================ */
+var CLASS_GROUPS=[
+  ['Softwood, EN 338:2016','s',{C14:[290,350],C16:[310,370],C18:[320,380],C20:[330,400],C22:[340,410],C24:[350,420],C27:[360,430],C30:[380,460],C35:[390,470],C40:[400,480]}],
+  ['Glulam, EN 14080:2013','s',{GL24h:[385,420],GL28h:[425,460],GL32h:[440,490],GL24c:[365,400],GL28c:[390,420],GL32c:[400,440]}],
+  ['Hardwood, EN 338:2016','h',{D30:[530,640],D35:[540,650],D40:[550,660],D50:[620,740]}]
+];
+var CLASSES={};
+CLASS_GROUPS.forEach(function(g){Object.keys(g[2]).forEach(function(k){CLASSES[k]={rho:g[2][k][0],rhom:g[2][k][1],hard:g[1]==='h'};});});
+var CLASS_OPTS=CLASS_GROUPS.map(function(g){
+  return '<optgroup label="'+g[0]+'">'+Object.keys(g[2]).map(function(k){return '<option value="'+k+'">'+k+' ('+g[2][k][0]+' kg/m³)</option>';}).join('')+'</optgroup>';
+}).join('')+'<optgroup label="Own density (detailed mode)"><option value="custom-s">Custom softwood</option><option value="custom-h">Custom hardwood</option></optgroup>';
+function cl(v,key){var c=CLASSES[v];return c?c[key]:'';}
+/* ultimate strength of the plate, EN 1993-1-1 Table 3.1 (t <= 40 mm) */
+var GRADES={S235:360,S275:430,S355:490,S450:550};
+var GRADE_OPTS=Object.keys(GRADES).map(function(k){return '<option value="'+k+'">'+k+'</option>';}).join('')+'<option value="custom">Own (detailed mode)</option>';
+var rnd=function(x,s){return CalcCore.rnd(x,s);};
+var up=function(x,s){return +(Math.ceil(x/s-1e-9)*s).toFixed(6);};
+
+var FIELDS=[
+  {h:'Steel plate'},
+  {id:'ts',l:'Plate thickness t<sub>s</sub>',u:'mm',v:5,s:1},
+  {sel:'grade',l:'Steel grade',v:'S235',opts:GRADE_OPTS},
+  {adv:1,id:'fup',l:'Ultimate strength f<sub>u,p</sub>',u:'N/mm²',s:10,auto:function(i){return GRADES[i.grade]||'';},why:'from the steel grade'},
+  {h:'Screw'},
+  {id:'d',l:'Outer thread diameter d',u:'mm',v:6,s:0.5},
+  {id:'l',l:'Length l',u:'mm',v:70,s:10},
+  {adv:1,id:'d1',l:'Thread root diameter d<sub>1</sub>',u:'mm',s:0.1,auto:function(i){return rnd(0.65*i.d,0.1);},why:'0.65 · d'},
+  {adv:1,id:'ds',l:'Diameter in the plate hole d<sub>s</sub>',u:'mm',s:0.1,auto:function(i){return i.d;},why:'= d, fully threaded screw or collar under the head'},
+  {adv:1,id:'dh',l:'Head diameter d<sub>h</sub>',u:'mm',s:0.5,auto:function(i){return rnd(2*i.d,0.5);},why:'2 · d, used for the sketch only'},
+  {adv:1,id:'lg',l:'Thread length l<sub>g</sub>',u:'mm',s:5,auto:function(i){return i.l>i.ts?rnd(i.l-i.ts,0.5):'';},why:'l − t<sub>s</sub>, thread over the whole penetration'},
+  {adv:1,id:'fu',l:'Tensile strength f<sub>u</sub>',u:'N/mm²',s:50,auto:function(){return 800;},why:'typical value for screws'},
+  {adv:1,id:'My',l:'Declared M<sub>y,Rk</sub> (optional)',u:'Nmm',s:100,auto:function(){return '';}},
+  {adv:1,id:'ftens',l:'Tensile capacity f<sub>tens,k</sub>',u:'N',s:100,auto:function(i){return rnd(900*Math.PI*i.d1*i.d1/4,100);},why:'900 N/mm² · π · d₁² / 4'},
+  {adv:1,note:'Take the screw data from the product declaration (ETA) when you have it. Leave M<sub>y,Rk</sub> empty to compute it from f<sub>u</sub> with eq. (8.14). d<sub>s</sub> is the part of the screw that sits in the hole; it enters the hole clearance and the bearing check.'},
+  {adv:1,h:'Hole and distances in the plate'},
+  {adv:1,id:'d0',l:'Hole diameter d<sub>0</sub>',u:'mm',s:0.5,auto:function(i){return rnd(i.d+0.5,0.1);},why:'d + 0.5 mm'},
+  {adv:1,id:'e1',l:'End distance in load direction e<sub>1</sub>',u:'mm',s:5,auto:function(i){return up(3*i.d0,1);},why:'3 · d<sub>0</sub>, so that α<sub>d</sub> = 1'},
+  {adv:1,id:'e2',l:'Edge distance across the load e<sub>2</sub>',u:'mm',s:5,auto:function(i){return up(1.5*i.d0,1);},why:'1.5 · d<sub>0</sub>, so that k<sub>1</sub> = 2.5'},
+  {h:'Timber'},
+  {sel:'cls2',l:'Strength class',v:'C24',opts:CLASS_OPTS},
+  {adv:1,id:'rho2',l:'Density ρ<sub>k</sub>',u:'kg/m³',s:10,auto:function(i){return cl(i.cls2,'rho');},why:'from the strength class'},
+  {adv:1,id:'rhom2',l:'Mean density ρ<sub>mean</sub>',u:'kg/m³',s:10,auto:function(i){return cl(i.cls2,'rhom');},why:'from the strength class'},
+  {adv:1,id:'a2',l:'Load-to-grain angle α',u:'°',s:15,max:90,auto:function(){return 0;},why:'load parallel to the grain'},
+  {adv:1,c:'predrilled',l:'Predrilled holes',auto:function(){return false;}},
+  {adv:1,h:'Edge and end distances in the timber (optional)'},
+  {adv:1,id:'e3t2',l:'Loaded end a<sub>3,t</sub>',u:'mm',s:5,auto:function(){return '';}},
+  {adv:1,id:'e3c2',l:'Unloaded end a<sub>3,c</sub>',u:'mm',s:5,auto:function(){return '';}},
+  {adv:1,id:'e4t2',l:'Loaded edge a<sub>4,t</sub>',u:'mm',s:5,auto:function(){return '';}},
+  {adv:1,id:'e4c2',l:'Unloaded edge a<sub>4,c</sub>',u:'mm',s:5,auto:function(){return '';}},
+  {adv:1,note:'Distances from the screw axis, along the grain (ends) and across it (edges). Leave a field empty to skip its check; the required values are listed anyway.'},
+  {h:'Design'},
+  {id:'kmod',l:'k<sub>mod</sub>',u:'–',v:0.8,s:0.1},
+  {adv:1,id:'gM',l:'γ<sub>M</sub> (connections, EN 1995)',u:'–',s:0.05,auto:function(){return 1.3;},why:'EN 1995-1-1, Table 2.3'},
+  {adv:1,id:'gM2',l:'γ<sub>M2</sub> (plate bearing, EN 1993)',u:'–',s:0.05,auto:function(){return 1.25;},why:'EN 1993-1-8, Table 2.1'},
+  {id:'FEd',l:'Design shear force F<sub>v,Ed</sub>',u:'N',v:1000,s:50}
+];
+
+/* ================================================================
+   3. PAGE
+   ================================================================ */
+var form,lastR=null,selected=null,hingeNote='';
+function main(){
+  var $=CalcCore.$;
+  form=CalcCore.form($('inputs'),FIELDS,function(){selected=null;update();});
+  $('modes').addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;selected=b.getAttribute('data-m');update();});
+  function syncCalc(){$('btnCalc').textContent=$('calc').open?'Hide calculation':'Show calculation';}
+  $('calc').addEventListener('toggle',syncCalc);
+  $('btnCalc').addEventListener('click',function(){$('calc').open=!$('calc').open;syncCalc();});
+  $('btnExample').addEventListener('click',function(){form.setState(null);selected=null;update();});
+  $('btnClear').addEventListener('click',function(){form.clear();form.touched={};selected=null;update();$('ts').focus();});
+  $('btnPrint').addEventListener('click',function(){window.print();});
+  $('btnSave').addEventListener('click',function(){
+    var st=form.getState(),v=st.values;st.showCalc=$('calc').open;
+    CalcCore.saveCopy(SRC,st,'screw-s2t-d'+(v.d||'x')+'-l'+(v.l||'x')+'-ts'+(v.ts||'x')+'.html');
+  });
+  $('btnDxf').addEventListener('click',function(){if(lastR)CalcCore.need('CalcDXF','js/export-dxf.js',function(D){D.save(fileName('dxf'),buildDXF(lastR));});});
+  $('btnMd').addEventListener('click',function(){if(lastR)CalcCore.need('CalcMD','js/export-md.js',function(M){M.save(fileName('md'),buildMarkdown(lastR));});});
+  $('btnSvg').addEventListener('click',function(){if(lastR)CalcCore.need('CalcSVG','js/export-svg.js',function(G){G.save(fileName('svg'),svgSpec(lastR));});});
+  var st=null;try{st=JSON.parse($('saved').textContent);}catch(e){}
+  form.setState(st);
+  if(st&&typeof st.showCalc==='boolean')$('calc').open=st.showCalc;
+  syncCalc();update();
+}
+function fileName(ext){var i=lastR.inp;return 'screw-s2t-d'+i.d+'-l'+i.l+'-ts'+i.ts+'.'+ext;}
+function read(){
+  var i=form.read(),v=i.cls2;
+  i.hard2=CLASSES[v]?CLASSES[v].hard:v==='custom-h';
+  i.lab2=CLASSES[v]?v:(v==='custom-h'?'custom hardwood':'custom softwood');
+  i.gradeLab=GRADES[i.grade]?i.grade:'own steel';
+  return i;
+}
+
+function update(){
+  var $=CalcCore.$,N=CalcCore.N,i=read(),r=calc(i);
+  if(r.err){
+    $('warns').innerHTML='<li>'+r.err+'</li>';
+    ['sketch','caption','modes','dist','plate'].forEach(function(k){$(k).innerHTML='';});
+    $('result').innerHTML='<h2>Load-bearing capacity</h2><p>Waiting for valid input.</p>';
+    lastR=null;CalcCore.clearSteps();return;
+  }
+  $('warns').innerHTML=r.warn.map(function(w){return '<li>'+w+'</li>';}).join('');
+  var m=r.modes.filter(function(x){return x.id===selected;})[0]||r.gov;
+  $('sketch').innerHTML=sketch(r,m);
+  $('caption').innerHTML='<b>Mode ('+m.label+')</b>'+(m.tag?' '+m.tag+'. ':' (not governing). ')+m.desc+
+    (r.plate==='mid'?' The plate is between thin and thick, so the capacity is interpolated between the governing thin-plate and thick-plate modes.':'')+
+    (r.tolDown?' The hole clearance is too large for a thick plate, so the thin-plate modes apply.':'')+hingeNote;
+  /* result */
+  var dst=r.distStatus==='bad'?'bad">not satisfied':r.distStatus==='ok'?'ok">satisfied':'na">not checked';
+  var h='<h2>Load-bearing capacity</h2><div class="big">'+N(r.FRd/1000,2)+' <small>kN</small></div><div>design resistance F<sub>Rd</sub> per screw, governed by '+(r.plateGov?'bearing of the steel plate':'the timber side')+'</div>';
+  h+='<dl><dt>Timber side F<sub>v,Rd</sub></dt><dd>'+N(r.FvRd)+' N</dd><dt>Plate bearing F<sub>b,Rd</sub></dt><dd>'+N(r.FbRd)+' N</dd>';
+  h+='<dt>Characteristic F<sub>v,Rk</sub></dt><dd>'+N(r.FvRk)+' N</dd><dt>Governing mode</dt><dd>'+r.govLabel+'</dd>'+(r.plate==='mid'?'':'<dt>Rope effect included</dt><dd>'+N(r.gov.rope)+' N</dd>');
+  h+='<dt>Slip modulus K<sub>ser</sub></dt><dd>'+N(r.Kser)+' N/mm</dd>';
+  if(r.util!==null)h+='<dt>F<sub>v,Ed</sub> / F<sub>Rd</sub></dt><dd>'+N(r.util,2)+'</dd>';
+  h+='<dt>Distances in the timber</dt><dd class="st '+dst+'</dd><dt>Distances in the plate</dt><dd class="st '+r.plateStatus+'">'+(r.plateStatus==='ok'?'satisfied':'not satisfied')+'</dd></dl>';
+  if(r.util!==null){
+    var bad=r.util>1;
+    h+='<div class="util'+(bad?' bad':'')+'"><span style="width:'+Math.min(100,r.util*100).toFixed(1)+'%"></span></div>';
+    h+='<p class="verdict'+(bad?' bad':'')+'">'+(!bad?'Satisfied.':'Not satisfied: '+(r.utilT>1&&r.utilP>1?'the timber side and the plate are overloaded.':r.utilT>1?'the timber side is overloaded.':'the plate is overloaded in bearing.'))+'</p>';
+  }
+  $('result').innerHTML=h;
+  /* table of modes */
+  var max=Math.max.apply(null,r.modes.map(function(x){return x.F;}));
+  var t='<tr><th>Mode</th><th>Johansen part</th><th>Rope effect</th><th>F<sub>v,Rk</sub></th></tr>';
+  r.modes.forEach(function(x){
+    t+='<tr class="'+(x.tag?'gov ':'')+(x.id===m.id?'sel':'')+'"><td><button type="button" data-m="'+x.id+'" aria-pressed="'+(x.id===m.id)+'"><span class="mini">'+mini(x.id)+'</span><span class="mtxt"><b>('+x.label+')</b>'+(x.tag?'<span class="tag">'+x.tag+'</span>':'')+'<span class="mdesc">'+x.desc+'</span><span class="bar" style="width:'+(x.F/max*100).toFixed(1)+'%"></span></span></button></td><td class="n">'+N(x.J)+' N</td><td class="n">'+N(x.rope)+' N</td><td class="n tot">'+N(x.F)+' N</td></tr>';
+  });
+  $('modes').innerHTML=t;
+  $('plate').innerHTML=plateTable(r);
+  $('dist').innerHTML=distTable(r);
+  lastR=r;
+  CalcCore.renderSteps($('steps'),stepsTex(r));
+}
+
+/* ---------- steel plate table ---------- */
+function plateTable(r){
+  var N=CalcCore.N,i=r.inp,h='<table class="dist"><tr><th>Check</th><th>Rule</th><th>Limit</th><th>Provided</th><th>Check</th></tr>';
+  function st(ok,y,n){return '<td class="st '+(ok===null?'na">'+n:ok?'ok">'+y:'bad">'+n)+'</td>';}
+  h+='<tr class="grp"><td colspan="5">Steel plate ('+i.gradeLab+', f<sub>u,p</sub> = '+i.fup+' N/mm²), t<sub>s</sub> = '+i.ts+' mm, hole d<sub>0</sub> = '+i.d0+' mm</td></tr>';
+  h+='<tr><td>End distance e<sub>1</sub></td><td>≥ 1.2 · d<sub>0</sub></td><td>'+N(r.emin,1)+' mm</td><td>'+N(i.e1,1)+' mm</td>'+st(r.e1Ok,'satisfied','too small')+'</tr>';
+  h+='<tr><td>Edge distance e<sub>2</sub></td><td>≥ 1.2 · d<sub>0</sub></td><td>'+N(r.emin,1)+' mm</td><td>'+N(i.e2,1)+' mm</td>'+st(r.e2Ok,'satisfied','too small')+'</tr>';
+  h+='<tr><td>Hole clearance d<sub>0</sub> − d<sub>s</sub></td><td>≤ 0.1 · d for a thick plate</td><td>'+N(r.tolLim,1)+' mm</td><td>'+N(r.clear,1)+' mm</td>'+(r.ratio<=0.5?st(null,'','thin plate anyway'):st(r.tolOk,'satisfied','thin plate used'))+'</tr>';
+  h+='<tr><td>Bearing F<sub>b,Rd</sub></td><td>k<sub>1</sub> · α<sub>b</sub> · f<sub>u,p</sub> · d<sub>s</sub> · t<sub>s</sub> / γ<sub>M2</sub></td><td>'+N(r.FbRd)+' N</td><td>'+(r.utilP===null?'–':N(i.FEd)+' N')+'</td>'+st(r.utilP===null?null:r.utilP<=1,'satisfied',r.utilP===null?'not checked':'overloaded')+'</tr>';
+  h+='</table>';
+  return h+'<p class="hint">α<sub>b</sub> = '+N(r.ab,3)+', k<sub>1</sub> = '+N(r.k1,3)+(r.Fb2<r.Fb1?'; the limit 1.5 · f<sub>u,p</sub> · d<sub>s</sub> · t<sub>s</sub> / γ<sub>M2</sub> for a single lap joint governs':'')+'. e<sub>1</sub> is measured from the hole centre to the plate end in the load direction, e<sub>2</sub> to the plate edge across the load. The net section of the plate is not checked.</p>';
+}
+
+/* ---------- edge and end distances in the timber ---------- */
+var DNAME={a1:'Spacing along the grain',a2:'Spacing across the grain',a3t:'Loaded end',a3c:'Unloaded end',a4t:'Loaded edge',a4c:'Unloaded edge'};
+var DSYM={a1:'a_1',a2:'a_2',a3t:'a_3,t',a3c:'a_3,c',a4t:'a_4,t',a4c:'a_4,c'};
+var DTEX={a1:'a_{1}',a2:'a_{2}',a3t:'a_{\\mathrm{3,t}}',a3c:'a_{\\mathrm{3,c}}',a4t:'a_{\\mathrm{4,t}}',a4c:'a_{\\mathrm{4,c}}'};
+function distRule(r){return r.nail?'Table 8.2 (nails), '+(r.inp.predrilled?'predrilled':'not predrilled'):'Table 8.4 (bolts)';}
+/* rule of one distance as text or LaTeX: [general form, with numbers] */
+function distExpr(it,alpha,d,tex){
+  var dot=tex?' \\cdot ':' · ',mm=tex?'\\,\\text{mm}':' mm',al=tex?'\\alpha':'α',
+      tr=it.trig?(tex?'\\'+it.trig+' ':it.trig+' '):'',deg=tex?'^\\circ':'°',k1=it.c1===1?'':it.c1+dot;
+  var g=it.c1?'('+it.c0+' + '+k1+tr+al+')'+dot+'d':it.c0+dot+'d';
+  var v=it.c1?'('+it.c0+' + '+k1+tr+alpha+deg+')'+dot+d+mm:it.c0+dot+d+mm;
+  var fg=it.fc?it.fc+dot+'d':(it.fmm?it.fmm+mm:''),fv=it.fc?it.fc+dot+d+mm:(it.fmm?it.fmm+mm:'');
+  if(it.red!==1){g=it.red+dot+g;v=it.red+dot+v;}
+  if(fg){
+    if(tex){g='\\max\\left('+g+';\\ '+fg+'\\right)';v='\\max\\left('+v+';\\ '+fv+'\\right)';}
+    else{g='max('+g+'; '+fg+')';v='max('+v+'; '+fv+')';}
+  }
+  return [g,v];
+}
+function distTable(r){
+  var N=CalcCore.N,sub=CalcCore.sub,i=r.inp,m=r.dist,h='<table class="dist"><tr><th>Distance</th><th>Minimum</th><th>Required</th><th>Provided</th><th>Check</th></tr>';
+  h+='<tr class="grp"><td colspan="5">Timber ('+i.lab2+'), α = '+m.alpha+'°, '+distRule(r)+'</td></tr>';
+  if(!m.T)h+='<tr><td colspan="5"><span class="st bad">Predrilling is required for ρ<sub>k</sub> &gt; 500 kg/m³.</span></td></tr>';
+  else ['a3t','a3c','a4t','a4c','a1','a2'].forEach(function(k){
+    var it=m.T[k],e=distExpr(it,m.alpha,i.d,false),info=k==='a1'||k==='a2';
+    h+='<tr'+(info?' class="info"':'')+'><td>'+DNAME[k]+' '+sub(DSYM[k])+'</td><td>'+sub(e[0])+'</td><td>'+N(it.req,1)+' mm</td><td>'+(info||it.prov===null?'–':N(it.prov,1)+' mm')+'</td><td class="st '+(info?'na">for groups':it.ok===null?'na">not checked':it.ok?'ok">satisfied':'bad">too small')+'</td></tr>';
+  });
+  h+='</table>';
+  return h+'<p class="hint">The provided distances are entered in the detailed mode. Spacings a<sub>1</sub> and a<sub>2</sub> matter only when there are more screws'+(r.nail?'; for d ≤ 6 mm they are reduced to 70 % for a steel plate (cl. 8.3.1.2(3))':'')+'.</p>';
+}
+
+/* ================================================================
+   4. CALCULATION STEPS
+   Written once in LaTeX. MathJax typesets them; without MathJax
+   CalcCore.tex2html shows them as plain text, and the Markdown
+   export keeps them as $$ … $$.
+   ================================================================ */
+function stepsTex(r){
+  var R=String.raw,i=r.inp,o='',n=CalcCore.Ntex,sub=CalcCore.sub;
+  var mm=R`\,\text{mm}`,NN=R`\,\text{N}`,MPa=R`\,\text{N/mm}^2`,Nmm=R`\,\text{Nmm}`,kg=R`\,\text{kg/m}^3`,Nm=R`\,\text{N/mm}`;
+  var fh=R`f_{\mathrm{h,k}}`,def=R`d_{\mathrm{ef}}`,My=R`M_{\mathrm{y,Rk}}`,Fax=R`F_{\mathrm{ax,Rk}}`,rho=R`\rho_{\mathrm{k}}`,lef=R`l_{\mathrm{ef}}`,ts=R`t_{\mathrm{s}}`;
+  var fup=R`f_{\mathrm{u,p}}`,ds=R`d_{\mathrm{s}}`,gM2=R`\gamma_{\mathrm{M2}}`,Fb=R`F_{\mathrm{b,Rd}}`;
+  var Fv=function(m){return R`F_{\mathrm{v,Rk,${m}}}`;};
+  var f2=n(r.fh2,2),de=n(r.def,2),t2=n(r.t2,r.t2%1?1:0),a2=i.a2||0,M={};
+  r.modes.forEach(function(m){M[m.label]=m;});
+  function H(t){o+='<h4>'+t+'</h4>';}
+  function E(t){o+='<div class="eq">\\['+t+'\\]</div>';}
+  function Q(t){o+='<p class="note">'+sub(t)+'</p>';}
+  function A(lines){E(R`\begin{aligned}`+lines.join(R` \\[4pt] `)+R`\end{aligned}`);}
+  function lim(m){if(m.limited)Q('Mode ('+m.label+'): the rope effect is limited to 100 % of the Johansen part.');}
+
+  H('1. Geometry, effective diameter and plate type (cl. 8.7.1, 8.2.3)');
+  E(R`t_2 = l - ${ts} = ${n(i.l)}${mm} - ${i.ts}${mm} = ${t2}${mm}`);
+  E(R`${def} = 1.1 \cdot d_1 = 1.1 \cdot ${i.d1}${mm} = ${de}${mm}`);
+  var cls=r.tolDown?'above 0.5, but the hole clearance is too large: thin plate, eq. (8.9)':r.plate==='thin'?'at most 0.5: thin plate, eq. (8.9)':r.plate==='thick'?'at least 1.0: thick plate, eq. (8.10)':'between 0.5 (thin) and 1.0 (thick): linear interpolation';
+  E(R`\frac{${ts}}{d} = \frac{${i.ts}${mm}}{${i.d}${mm}} = ${n(r.ratio,2)} \quad \text{(${cls})}`);
+  if(r.ratio>0.5)E(R`d_0 - ${ds} = ${i.d0}${mm} - ${i.ds}${mm} = ${n(r.clear,1)}${mm} ${r.tolOk?R`\le`:'>'} 0.1 \cdot d = ${n(r.tolLim,1)}${mm} \quad \text{(${r.tolOk?'hole tolerance for a thick plate satisfied':'hole tolerance for a thick plate not satisfied'})}`);
+  Q('t_2 is the penetration into the timber; it corresponds to t_1 in eq. (8.9) and (8.10).');
+
+  H('2. Timber and embedment strength');
+  E(R`${rho} = ${i.rho2}${kg} \quad \text{(${i.lab2})}`);
+  if(r.nail){
+    Q('d ≤ 6 mm: rules for nails (cl. 8.3.1). Empirical formula: ρ_k in kg/m³, d_ef in mm, result in N/mm².');
+    if(i.predrilled)E(R`${fh} = 0.082 \cdot (1 - 0.01 \cdot ${def}) \cdot ${rho} = 0.082 \cdot (1 - 0.01 \cdot ${de}) \cdot ${i.rho2} = ${f2}${MPa}`);
+    else E(R`${fh} = 0.082 \cdot ${rho} \cdot ${def}^{-0.3} = 0.082 \cdot ${i.rho2} \cdot ${de}^{-0.3} = ${f2}${MPa}`);
+  }else{
+    var k2=n(r.k902,3),c2=i.hard2?'0.90':'1.35',wd=i.hard2?'hardwood':'softwood';
+    Q('d > 6 mm: rules for bolts (cl. 8.5.1). Empirical formula: ρ_k in kg/m³, d_ef in mm, result in N/mm².');
+    E(R`k_{90} = ${c2} + 0.015 \cdot ${def} = ${c2} + 0.015 \cdot ${de} = ${k2} \quad \text{(${wd})}`);
+    E(R`${fh} = \frac{0.082 \cdot (1 - 0.01 \cdot ${def}) \cdot ${rho}}{k_{90} \sin^2\alpha + \cos^2\alpha} = \frac{0.082 \cdot (1 - 0.01 \cdot ${de}) \cdot ${i.rho2}}{${k2} \cdot \sin^2 ${a2}^\circ + \cos^2 ${a2}^\circ} = ${f2}${MPa}`);
+  }
+
+  H('3. Yield moment');
+  if(r.MyDeclared)E(R`${My} = ${n(r.My)}${Nmm} \quad \text{(declared value)}`);
+  else{
+    Q('Empirical formula (8.14): f_u in N/mm², d_ef in mm, result in Nmm.');
+    E(R`${My} = 0.3 \cdot f_{\mathrm{u}} \cdot ${def}^{2.6} = 0.3 \cdot ${i.fu} \cdot ${de}^{2.6} = ${n(r.My)}${Nmm}`);
+  }
+
+  H('4. Axial capacity for the rope effect (cl. 8.7.2)');
+  Q('Empirical formula (8.39): d and l_ef in mm, ρ_k in kg/m³, result in N/mm². Head pull-through does not apply under a steel plate.');
+  E(R`${lef} = \min(l_{\mathrm{g}};\ t_2) = \min(${n(i.lg)}${mm};\ ${t2}${mm}) = ${n(r.lef)}${mm}`);
+  E(R`f_{\mathrm{ax,k}} = 0.52 \cdot d^{-0.5} \cdot ${lef}^{-0.1} \cdot ${rho}^{0.8} = 0.52 \cdot ${i.d}^{-0.5} \cdot ${n(r.lef)}^{-0.1} \cdot ${i.rho2}^{0.8} = ${n(r.fax,2)}${MPa}`);
+  E(R`k_{\mathrm{d}} = \min\left(\frac{d}{8${mm}};\ 1\right) = \min\left(\frac{${i.d}${mm}}{8${mm}};\ 1\right) = ${n(r.kd,2)}`);
+  E(R`F_{\mathrm{ax,Rk,thread}} = f_{\mathrm{ax,k}} \cdot d \cdot ${lef} \cdot k_{\mathrm{d}} = ${n(r.fax,2)}${MPa} \cdot ${i.d}${mm} \cdot ${n(r.lef)}${mm} \cdot ${n(r.kd,2)} = ${n(r.Fthread)}${NN}`);
+  E(R`${Fax} = \min\left(${n(r.Fthread)}${NN};\ ${n(i.ftens)}${NN}\right) = ${n(r.Fax)}${NN}`);
+  E(R`\frac{${Fax}}{4} = \frac{${n(r.Fax)}${NN}}{4} = ${n(r.rope)}${NN}`);
+
+  H('5. Characteristic capacity per shear plane (eq. '+(r.plate==='thin'?'8.9':r.plate==='thick'?'8.10':'8.9 and 8.10')+')');
+  E(R`${fh} \cdot t_2 \cdot ${def} = ${f2}${MPa} \cdot ${t2}${mm} \cdot ${de}${mm} = ${n(r.B)}${NN}`);
+  if(r.plate!=='thick'){
+    Q('Thin plate, eq. (8.9):');
+    E(R`${Fv('a')} = 0.4 \cdot ${fh} \cdot t_2 \cdot ${def} = 0.4 \cdot ${n(r.B)}${NN} = ${n(M.a.F)}${NN}`);
+    A([R`${Fv('b')} &= 1.15 \cdot \sqrt{2 \cdot ${My} \cdot ${fh} \cdot ${def}} + \frac{${Fax}}{4}`,
+       R`&= 1.15 \cdot \sqrt{2 \cdot ${n(r.My)}${Nmm} \cdot ${f2}${MPa} \cdot ${de}${mm}} + ${n(M.b.rope)}${NN}`,
+       R`&= ${n(M.b.J)}${NN} + ${n(M.b.rope)}${NN} = ${n(M.b.F)}${NN}`]);
+    lim(M.b);
+    if(r.plate==='mid')E(R`F_{\mathrm{thin}} = \min\left(${n(M.a.F)}${NN};\ ${n(M.b.F)}${NN}\right) = ${n(r.Fthin)}${NN}`);
+  }
+  if(r.plate!=='thin'){
+    Q('Thick plate, eq. (8.10):');
+    E(R`${Fv('c')} = ${fh} \cdot t_2 \cdot ${def} = ${n(M.c.F)}${NN}`);
+    A([R`${Fv('d')} &= ${fh} \cdot t_2 \cdot ${def} \cdot \left[\sqrt{2 + \frac{4 \cdot ${My}}{${fh} \cdot ${def} \cdot t_2^2}} - 1\right] + \frac{${Fax}}{4}`,
+       R`&= ${n(r.B)}${NN} \cdot \left[\sqrt{2 + \frac{4 \cdot ${n(r.My)}${Nmm}}{${f2}${MPa} \cdot ${de}${mm} \cdot (${t2}${mm})^2}} - 1\right] + ${n(M.d.rope)}${NN}`,
+       R`&= ${n(r.B)}${NN} \cdot \big[${n(r.sd,3)} - 1\big] + ${n(M.d.rope)}${NN} = ${n(M.d.J)}${NN} + ${n(M.d.rope)}${NN} = ${n(M.d.F)}${NN}`]);
+    lim(M.d);
+    A([R`${Fv('e')} &= 2.3 \cdot \sqrt{${My} \cdot ${fh} \cdot ${def}} + \frac{${Fax}}{4}`,
+       R`&= 2.3 \cdot \sqrt{${n(r.My)}${Nmm} \cdot ${f2}${MPa} \cdot ${de}${mm}} + ${n(M.e.rope)}${NN}`,
+       R`&= ${n(M.e.J)}${NN} + ${n(M.e.rope)}${NN} = ${n(M.e.F)}${NN}`]);
+    lim(M.e);
+    if(r.plate==='mid')E(R`F_{\mathrm{thick}} = \min\left(${n(M.c.F)}${NN};\ ${n(M.d.F)}${NN};\ ${n(M.e.F)}${NN}\right) = ${n(r.Fthick)}${NN}`);
+  }
+  if(r.plate==='thin')E(R`F_{\mathrm{v,Rk}} = \min\left(${n(M.a.F)}${NN};\ ${n(M.b.F)}${NN}\right) = ${n(r.FvRk)}${NN} \quad \text{mode (${r.gov.label})}`);
+  else if(r.plate==='thick')E(R`F_{\mathrm{v,Rk}} = \min\left(${n(M.c.F)}${NN};\ ${n(M.d.F)}${NN};\ ${n(M.e.F)}${NN}\right) = ${n(r.FvRk)}${NN} \quad \text{mode (${r.gov.label})}`);
+  else{
+    Q('Linear interpolation between the thin plate (t_s = 0.5 · d) and the thick plate (t_s = d), cl. 8.2.3(1):');
+    A([R`F_{\mathrm{v,Rk}} &= F_{\mathrm{thin}} + \left(F_{\mathrm{thick}} - F_{\mathrm{thin}}\right) \cdot \frac{${ts} - 0.5 \cdot d}{0.5 \cdot d}`,
+       R`&= ${n(r.Fthin)}${NN} + \left(${n(r.Fthick)}${NN} - ${n(r.Fthin)}${NN}\right) \cdot \frac{${i.ts}${mm} - 0.5 \cdot ${i.d}${mm}}{0.5 \cdot ${i.d}${mm}} = ${n(r.FvRk)}${NN}`]);
+  }
+
+  H('6. Design capacity of the timber side (eq. 2.17)');
+  E(R`F_{\mathrm{v,Rd}} = k_{\mathrm{mod}} \cdot \frac{F_{\mathrm{v,Rk}}}{\gamma_{\mathrm{M}}} = ${i.kmod} \cdot \frac{${n(r.FvRk)}${NN}}{${i.gM}} = ${n(r.FvRd)}${NN}`);
+
+  H('7. Steel plate: distances and bearing (EN 1993-1-8, Tables 3.3 and 3.4)');
+  Q('Plate '+i.gradeLab+': f_u,p = '+i.fup+' N/mm². The screw in the hole is treated like a bolt with diameter d_s = '+i.ds+' mm and strength f_u = '+i.fu+' N/mm².');
+  E(R`e_{\min} = 1.2 \cdot d_0 = 1.2 \cdot ${i.d0}${mm} = ${n(r.emin,1)}${mm}`);
+  E(R`e_1 = ${i.e1}${mm} ${r.e1Ok?R`\ge`:'<'} e_{\min} \quad \text{${r.e1Ok?'satisfied':'not satisfied'}}, \qquad e_2 = ${i.e2}${mm} ${r.e2Ok?R`\ge`:'<'} e_{\min} \quad \text{${r.e2Ok?'satisfied':'not satisfied'}}`);
+  E(R`\alpha_{\mathrm{b}} = \min\left(\frac{e_1}{3 \cdot d_0};\ \frac{f_{\mathrm{u}}}{${fup}};\ 1.0\right) = \min\left(\frac{${i.e1}${mm}}{3 \cdot ${i.d0}${mm}};\ \frac{${i.fu}${MPa}}{${i.fup}${MPa}};\ 1.0\right) = ${n(r.ab,3)}`);
+  E(R`k_1 = \min\left(2.8 \cdot \frac{e_2}{d_0} - 1.7;\ 2.5\right) = \min\left(2.8 \cdot \frac{${i.e2}${mm}}{${i.d0}${mm}} - 1.7;\ 2.5\right) = ${n(r.k1,3)}`);
+  E(R`F_{\mathrm{b,Rd,1}} = \frac{k_1 \cdot \alpha_{\mathrm{b}} \cdot ${fup} \cdot ${ds} \cdot ${ts}}{${gM2}} = \frac{${n(r.k1,3)} \cdot ${n(r.ab,3)} \cdot ${i.fup}${MPa} \cdot ${i.ds}${mm} \cdot ${i.ts}${mm}}{${i.gM2}} = ${n(r.Fb1)}${NN}`);
+  Q('Single lap joint with one row of fasteners (EN 1993-1-8, cl. 3.6.1(10)):');
+  E(R`F_{\mathrm{b,Rd,2}} = \frac{1.5 \cdot ${fup} \cdot ${ds} \cdot ${ts}}{${gM2}} = \frac{1.5 \cdot ${i.fup}${MPa} \cdot ${i.ds}${mm} \cdot ${i.ts}${mm}}{${i.gM2}} = ${n(r.Fb2)}${NN}`);
+  E(R`${Fb} = \min\left(${n(r.Fb1)}${NN};\ ${n(r.Fb2)}${NN}\right) = ${n(r.FbRd)}${NN}`);
+
+  H('8. Design resistance of the connection');
+  E(R`F_{\mathrm{Rd}} = \min\left(F_{\mathrm{v,Rd}};\ ${Fb}\right) = \min\left(${n(r.FvRd)}${NN};\ ${n(r.FbRd)}${NN}\right) = ${n(r.FRd)}${NN} = ${n(r.FRd/1000,2)}\,\text{kN} \quad \text{(${r.plateGov?'bearing of the plate governs':'the timber side governs'})}`);
+  if(r.util!==null)E(R`\frac{F_{\mathrm{v,Ed}}}{F_{\mathrm{Rd}}} = \frac{${n(i.FEd)}${NN}}{${n(r.FRd)}${NN}} = ${n(r.util,2)} ${r.util<=1?R`\le 1.0 \quad \text{satisfied}`:R`> 1.0 \quad \text{not satisfied}`}`);
+
+  H('9. Slip modulus (cl. 7.1, Table 7.1)');
+  Q('Empirical formula for screws: ρ_m in kg/m³, d in mm, result in N/mm. For steel to timber the value is doubled (cl. 7.1(3)).');
+  E(R`K_{\mathrm{ser}} = 2 \cdot \frac{\rho_{\mathrm{mean}}^{1.5} \cdot d}{23} = 2 \cdot \frac{${i.rhom2}^{1.5} \cdot ${i.d}}{23} = ${n(r.Kser)}${Nm}`);
+  E(R`K_{\mathrm{u}} = \tfrac{2}{3} \cdot K_{\mathrm{ser}} = ${n(r.Ku)}${Nm}`);
+
+  H('10. Minimum edge and end distances in the timber (cl. '+(r.nail?'8.3.1.2, Table 8.2':'8.5.1.1, Table 8.4')+')');
+  Q('The outer thread diameter d = '+i.d+' mm is used. '+distRule(r)+'.');
+  var m=r.dist;
+  if(!m.T)o+='<p>Predrilling is required for ρ<sub>k</sub> &gt; 500 kg/m³ (cl. 8.3.1.1(2)).</p>';
+  else ['a3t','a3c','a4t','a4c'].forEach(function(k){
+    var it=m.T[k],e=distExpr(it,m.alpha,i.d,true),cmp='';
+    if(it.prov!==null)cmp=it.ok?R` \le ${n(it.prov,1)}${mm} \quad \text{satisfied}`:R` > ${n(it.prov,1)}${mm} \quad \text{not satisfied}`;
+    E(DTEX[k]+' = '+e[0]+' = '+e[1]+' = '+n(it.req,1)+mm+cmp);
+  });
+  Q('Resistance of one screw in one shear plane. The net section of the steel plate and the effective number of screws in a row (n_ef) are not checked.');
+  return o;
+}
+
+/* ================================================================
+   5. DRAWINGS (SVG on the page)
+   ================================================================ */
+/* small schematic sketch of each mode for the table */
+function mini(id){
+  var top=17,sp=23,tip=52,bot=58,h1=45,h2=39;
+  function ln(p,q,y){return p[0]+(q[0]-p[0])*(y-p[1])/(q[1]-p[1]);}
+  var P={
+    sa:[[ln([h1,sp],[h2,44],top),top],[ln([h1,sp],[h2,44],tip),tip]],
+    sb:[[ln([h1,sp],[h2,37],top),top],[h2,37],[h2,tip]],
+    sc:[[h1,top],[h1,tip]],
+    sd:[[h1,top],[h1,sp],[ln([h1,sp],[h2,45],tip),tip]],
+    se:[[h1,top],[h1,sp],[h2,38],[h2,tip]]}[id];
+  var hinges={sa:[],sb:[1],sc:[],sd:[1],se:[1,2]}[id];
+  function xa(y){for(var k=0;k<P.length-1;k++){if(y<=P[k+1][1]||k===P.length-2)return ln(P[k],P[k+1],y);}}
+  function zone(ya,yz,xh){
+    var ys=[ya].concat(P.map(function(p){return p[1];}).filter(function(y){return y>ya&&y<yz;}),[yz]);
+    return '<polygon class="crush" points="'+ys.map(function(y){return xa(y).toFixed(1)+','+y;}).join(' ')+' '+xh+','+yz+' '+xh+','+ya+'"/>';
+  }
+  var o='<svg viewBox="0 0 84 64" aria-hidden="true">';
+  o+='<rect class="plate" x="14" y="'+top+'" width="62" height="'+(sp-top)+'" style="fill:var(--plate);stroke:var(--ink);stroke-width:1"/>';
+  o+='<rect class="m2 medge" x="8" y="'+sp+'" width="62" height="'+(bot-sp)+'"/>';
+  o+=zone(sp,tip,h2);
+  o+='<polyline class="mfast" points="'+P.map(function(p){return p[0].toFixed(1)+','+p[1];}).join(' ')+'"/>';
+  o+='<line class="mfast" x1="'+(P[0][0]-4).toFixed(1)+'" x2="'+(P[0][0]+4).toFixed(1)+'" y1="'+top+'" y2="'+top+'"/>';
+  hinges.forEach(function(k){o+='<circle class="mh" cx="'+P[k][0]+'" cy="'+P[k][1]+'" r="3.2"/>';});
+  return o+'</svg>';
+}
+
+/* section through the joint with the deformed screw of mode m, drawn to scale */
+function sketch(r,m){
+  var i=r.inp,N=CalcCore.N,tp=i.ts,tt=r.t2,def=r.def;
+  var dhh=i.dh>0?i.dh:2*i.d,hkk=0.22*dhh,dsv=Math.min(i.ds>0?i.ds:i.d,i.d0);
+  var ext=0.18*(tp+tt),s=Math.min(330/(tp+tt+ext),7);
+  var y0=62,xc=250,D=24,L=92,R=408,PL='fill:var(--plate);stroke:var(--ink);stroke-width:1.2';
+  var Y=function(y){return y0+(y+tp)*s;};
+  var ys=Y(0),yb=Y(tt+ext),rr=i.d*s/2;
+  function cl(v,lo,hi){return Math.max(lo,Math.min(hi,v));}
+  var F0=m.J/m.fac;
+  var b2=cl(F0/(r.fh2*def),0.08*tt,0.92*tt),c2=cl((tt+F0/(r.fh2*def))/2,0.15*tt,0.9*tt);
+  function lineAt(p,q,y){return p[1]+(q[1]-p[1])*(y-p[0])/(q[0]-p[0]);}
+  /* screw axis as points [depth below the plate, sideways shift]; hinges are kinks */
+  var pts,hinges=[];
+  if(m.id==='sa'){var pa=[0,D],qa=[c2,0];pts=[[-tp,lineAt(pa,qa,-tp)],[tt,lineAt(pa,qa,tt)]];}
+  else if(m.id==='sb'){var pb=[0,D],qb=[b2,0];pts=[[-tp,lineAt(pb,qb,-tp)],qb,[tt,0]];hinges=[qb];}
+  else if(m.id==='sc')pts=[[-tp,D],[tt,D]];
+  else if(m.id==='sd'){var pd=[0,D],qd=[c2,0];pts=[[-tp,D],pd,[tt,lineAt(pd,qd,tt)]];hinges=[pd];}
+  else{pts=[[-tp,D],[0,D],[b2,0],[tt,0]];hinges=[pts[1],pts[2]];}
+  function xs(y){for(var k=0;k<pts.length-1;k++){if(y<=pts[k+1][0]||k===pts.length-2)return lineAt(pts[k],pts[k+1],y);}}
+  var o='<svg viewBox="0 0 516 '+(yb+24).toFixed(0)+'" role="img" aria-label="Sketch of failure mode '+m.label+'">',g;
+  /* members */
+  o+='<rect style="'+PL+'" x="'+(L+D)+'" y="'+y0+'" width="'+(R-L)+'" height="'+(ys-y0).toFixed(1)+'"/>';
+  o+='<rect class="m2" x="'+L+'" y="'+ys.toFixed(1)+'" width="'+(R-L)+'" height="'+(yb-ys).toFixed(1)+'"/>';
+  for(g=ys+9;g<yb-3;g+=9)o+='<line class="grain" x1="'+(L+4)+'" x2="'+(R-4)+'" y1="'+g.toFixed(1)+'" y2="'+g.toFixed(1)+'"/>';
+  o+='<path class="edge" d="M'+L+' '+yb.toFixed(1)+'V'+ys.toFixed(1)+'H'+R+'V'+yb.toFixed(1)+'"/>';
+  o+='<path class="edge" stroke-dasharray="5 4" d="M'+L+' '+yb.toFixed(1)+'H'+R+'"/>';
+  /* screw body: part in the hole (d_s) down to yth, then the thread root (d_1) */
+  var yth=cl(-tp+(i.l-i.lg),-tp,tt),ytip=tt-Math.min(2.2*i.d1,1.3*i.d,0.3*tt);
+  var ws=Math.max(2,dsv*s),wc=Math.max(1.5,i.d1*s);
+  function rb(y){return (y<yth?ws:wc)/2;}
+  function zone(ya,yb2,xh){
+    var n=30,lft=[],rgt=[],e1=[],e2=[],yl=[],k,y,x,dir,qq;
+    for(k=0;k<=n;k++)yl.push(ya+(yb2-ya)*k/n);
+    if(yth>ya&&yth<yb2){yl.push(yth-1e-6,yth+1e-6);yl.sort(function(a,b){return a-b;});}
+    for(k=0;k<yl.length;k++){
+      y=yl[k];x=xs(y);qq=rb(y);
+      lft.push((xc+Math.min(x,xh)-qq).toFixed(1)+','+Y(y).toFixed(1));
+      rgt.unshift((xc+Math.max(x,xh)+qq).toFixed(1)+','+Y(y).toFixed(1));
+      dir=x>=xh?1:-1;
+      e1.push((xc+x+dir*qq).toFixed(1)+','+Y(y).toFixed(1));
+      e2.unshift((xc+x+dir*(qq+Math.abs(x-xh)*0.75)).toFixed(1)+','+Y(y).toFixed(1));
+    }
+    return '<polygon class="void" points="'+lft.concat(rgt).join(' ')+'"/><polygon class="crush" points="'+e1.concat(e2).join(' ')+'"/>';
+  }
+  o+=zone(0,tt,0);
+  var ysamp=pts.map(function(p){return p[0];}).concat([yth,ytip]).sort(function(a,b){return a-b;});
+  function poly(ya,yz){return ysamp.filter(function(y){return y>=ya-1e-9&&y<=yz+1e-9;}).map(function(y){return (xc+xs(y)).toFixed(1)+','+Y(y).toFixed(1);}).join(' ');}
+  function body(cls,ex){
+    var b='';
+    if(yth>-tp)b+='<polyline class="'+cls+'" stroke-width="'+(ws+ex).toFixed(1)+'" points="'+poly(-tp,yth)+'"/>';
+    if(ex<0)return (yth>-tp?'<polyline class="'+cls+'" stroke-width="'+(0.22*ws).toFixed(1)+'" points="'+poly(-tp,yth)+'"/>':'')+'<polyline class="'+cls+'" stroke-width="'+(0.22*wc).toFixed(1)+'" points="'+poly(yth,ytip)+'"/>';
+    return b+'<polyline class="'+cls+'" stroke-width="'+(wc+ex).toFixed(1)+'" points="'+poly(yth,ytip)+'"/>';
+  }
+  o+=body('shanko',2)+body('shank',0)+body('shankhi',-1);
+  /* thread: one slanted ridge per turn, only in the timber */
+  function frame(y){var e=0.01*tt,tx=xs(y+e)-xs(y-e),ty=2*e*s,tl=Math.hypot(tx,ty)||1;return {x:xc+xs(y),y:Y(y),tx:tx/tl,ty:ty/tl};}
+  var pitch=Math.max(9,0.6*i.d*s),tb='',yy;
+  for(yy=Math.max(yth,0)+0.6*pitch/s;yy<tt-2/s;yy+=pitch/s){
+    var fr=frame(yy),f=yy>ytip?(tt-yy)/(tt-ytip):1,g2=Math.max(f,0.35),rc=wc/2*f,ro=rc+(rr-wc/2)*f,ld=0.25*pitch*g2,bl=0.15*pitch*g2;
+    tb+=[[-ro,-ld],[-rc,-ld-bl],[rc,ld-bl],[ro,ld],[rc,ld+1.5*bl],[-rc,-ld+1.5*bl]].map(function(qq,k){
+      return (k?'L':'M')+(fr.x+fr.ty*qq[0]+fr.tx*qq[1]).toFixed(1)+' '+(fr.y-fr.tx*qq[0]+fr.ty*qq[1]).toFixed(1);
+    }).join('')+'Z';
+  }
+  o+='<path class="tooth" d="'+tb+'"/><path class="toothhi" d="'+tb+'"/>';
+  /* tip */
+  var bx=xc+xs(ytip),by=Y(ytip),tx=xc+xs(tt),ty=Y(tt),len=Math.hypot(tx-bx,ty-by)||1,nx=-(ty-by)/len,ny=(tx-bx)/len;
+  o+='<polygon class="head" points="'+(bx+nx*wc/2).toFixed(1)+','+(by+ny*wc/2).toFixed(1)+' '+(bx-nx*wc/2).toFixed(1)+','+(by-ny*wc/2).toFixed(1)+' '+tx.toFixed(1)+','+ty.toFixed(1)+'"/>';
+  /* head sitting on the plate */
+  var hx=xc+xs(-tp),hy=Y(-tp),yn=Math.min(pts[1][0],-tp+1),ux=xc+xs(yn)-hx,uy=Y(yn)-hy,ul=Math.hypot(ux,uy)||1;
+  ux/=ul;uy/=ul;var px=-uy,py=ux,hw=dhh*s/2;
+  function hp(a,bb){return (hx+px*a+ux*bb).toFixed(1)+','+(hy+py*a+uy*bb).toFixed(1);}
+  var hh=Math.min(hkk*s,54),ch=Math.min(0.14*hh+0.8,3);
+  o+='<polygon class="head" points="'+hp(hw,0)+' '+hp(hw,-hh+ch)+' '+hp(hw-ch,-hh)+' '+hp(-hw+ch,-hh)+' '+hp(-hw,-hh+ch)+' '+hp(-hw,0)+'"/>';
+  o+='<polygon class="headhi" points="'+hp(hw-1.2,-0.5*hh)+' '+hp(hw-1.2,-hh+ch)+' '+hp(hw-ch-0.6,-hh+1.2)+' '+hp(-hw+ch+0.6,-hh+1.2)+' '+hp(-hw+1.2,-hh+ch)+' '+hp(-hw+1.2,-0.5*hh)+'"/>';
+  /* plastic hinges */
+  var ythRaw=-tp+(i.l-i.lg),notes=[];
+  hinges.forEach(function(h){
+    var cx=xc+h[1],cy=Y(h[0]),inShank=h[0]<ythRaw-1e-9,atPlate=Math.abs(h[0])<1e-9,sec=inShank?'smooth part':'thread',rh=Math.max(rb(h[0]),3);
+    o+='<circle class="hinge" cx="'+cx.toFixed(1)+'" cy="'+cy.toFixed(1)+'" r="'+(rh+4).toFixed(1)+'"/><circle class="hdot" cx="'+cx.toFixed(1)+'" cy="'+cy.toFixed(1)+'" r="2.6"/>';
+    if(atPlate){
+      o+='<text class="txt hl" x="'+(cx+rh+26).toFixed(1)+'" y="'+(cy+rh+15).toFixed(1)+'">hinge at the plate</text>';
+      notes.push('at the plate, in the '+sec);
+    }else{
+      var hx2=(cx-rh-11).toFixed(1);
+      o+='<text class="txt hl" text-anchor="end" x="'+hx2+'" y="'+(cy-2).toFixed(1)+'">hinge in '+sec+'<tspan x="'+hx2+'" dy="14">'+N(h[0],0)+' mm deep</tspan></text>';
+      notes.push(N(h[0],0)+' mm below the plate, in the '+sec);
+    }
+  });
+  hingeNote=notes.length?' Plastic hinge'+(notes.length>1?'s: ':': ')+notes.join('; ')+'.':'';
+  /* load arrows */
+  var ym1=(y0+ys)/2,ym2=Math.min(ys+(yb-ys)/2,yb-14);
+  o+='<path class="arrow" d="M'+(R+D+6)+' '+ym1.toFixed(1)+'H'+(R+D+44)+'"/><polygon class="ahead" points="'+(R+D+56)+','+ym1.toFixed(1)+' '+(R+D+43)+','+(ym1-6).toFixed(1)+' '+(R+D+43)+','+(ym1+6).toFixed(1)+'"/>';
+  o+='<text class="txt f" x="'+(R+D+10)+'" y="'+(ym1-10).toFixed(1)+'">F</text>';
+  o+='<path class="arrow" d="M'+(L-6)+' '+ym2.toFixed(1)+'H'+(L-44)+'"/><polygon class="ahead" points="'+(L-56)+','+ym2.toFixed(1)+' '+(L-43)+','+(ym2-6).toFixed(1)+' '+(L-43)+','+(ym2+6).toFixed(1)+'"/>';
+  o+='<text class="txt f" x="'+(L-40)+'" y="'+(ym2-10).toFixed(1)+'">F</text>';
+  /* dimensions */
+  function dim(x,ya,yz,label,anchor){
+    var a=Y(ya),z=Y(yz);
+    return '<path class="dim" d="M'+x+' '+a.toFixed(1)+'V'+z.toFixed(1)+'M'+(x-4)+' '+a.toFixed(1)+'h8M'+(x-4)+' '+z.toFixed(1)+'h8"/><text class="txt m" text-anchor="'+anchor+'" x="'+(anchor==='end'?x-8:x+8)+'" y="'+((a+z)/2+4).toFixed(1)+'">'+label+'</text>';
+  }
+  o+=dim(L+D-18,-tp,0,'tₛ = '+N(tp,tp%1?1:0)+' mm','end');
+  o+=dim(R+18,0,tt,'t₂ = '+N(tt,tt%1?1:0)+' mm','start');
+  o+='<text class="txt m" x="'+(L+D+8)+'" y="'+(y0-8)+'">steel plate</text>';
+  o+='<text class="txt m" x="'+(L+8)+'" y="'+(yb+16).toFixed(1)+'">timber</text>';
+  return o+'</svg>';
+}
+
+/* ================================================================
+   6. EXPORTS (the writers are in assets/js/export-*.js)
+   ================================================================ */
+/* DXF: undeformed section 1:1 in mm, with a data block */
+function buildDXF(r){
+  var i=r.inp,X=CalcDXF.create([['TIMBER',30,'CONTINUOUS'],['STEEL',5,'CONTINUOUS'],['SCREW',7,'CONTINUOUS'],['THREAD',8,'CONTINUOUS'],['CENTER',1,'CENTER'],['DIM',3,'CONTINUOUS'],['TEXT',7,'CONTINUOUS'],['BREAK',9,'DASHED']]);
+  var g=function(v){return (+(+v).toFixed(2)).toString();};
+  var tp=i.ts,tt=r.t2,d=i.d,d1=i.d1,dh=i.dh>0?i.dh:2*d,ds=Math.min(i.ds,i.d0);
+  var W=Math.max(60,10*d),yb=-(tt+Math.max(20,0.25*tt));
+  X.line('STEEL',-W,tp,W,tp);X.line('STEEL',-W,0,-i.d0/2,0);X.line('STEEL',i.d0/2,0,W,0);
+  X.line('TIMBER',-W,0,W,0);
+  X.line('BREAK',-W,0,-W,tp);X.line('BREAK',W,0,W,tp);
+  X.line('BREAK',-W,0,-W,yb);X.line('BREAK',W,0,W,yb);X.line('BREAK',-W,yb,W,yb);
+  X.line('STEEL',-i.d0/2,0,-i.d0/2,tp);X.line('STEEL',i.d0/2,0,i.d0/2,tp);
+  var yTip=tp-i.l,hk=0.22*dh;
+  X.path('SCREW',[[-dh/2,tp],[-dh/2,tp+hk],[dh/2,tp+hk],[dh/2,tp]],true);
+  var yth=Math.min(tp,tp-(i.l-i.lg)),ytap=Math.min(yth,yTip+Math.min(2.2*d1,1.3*d,0.3*tt));
+  if(yth<tp-1e-9){X.line('SCREW',-ds/2,tp,-ds/2,yth);X.line('SCREW',ds/2,tp,ds/2,yth);var w=Math.max(ds,d)/2;X.line('SCREW',-w,yth,w,yth);}
+  X.path('SCREW',[[-d1/2,yth],[-d1/2,ytap],[0,yTip],[d1/2,ytap],[d1/2,yth]],false);
+  X.path('THREAD',[[-d/2,yth],[-d/2,ytap],[0,yTip],[d/2,ytap],[d/2,yth]],false);
+  X.line('CENTER',0,tp+hk+8,0,yTip-8);
+  X.dimV(-W-12,0,tp,'ts = '+g(tp));X.dimV(-W-12,-tt,0,'t2 = '+g(tt));
+  X.dimV(W+12,yTip,tp,'l = '+g(i.l));X.dimV(W+26,yTip,yTip+i.lg,'lg = '+g(i.lg));
+  X.text('TEXT',-W,tp+hk+14,4,'SECTION (1:1, mm), undeformed');
+  X.text('TEXT',-W+3,-6,3,'timber '+i.lab2);
+  [ 'Laterally loaded screw, steel plate to timber, single shear, EN 1995-1-1 and EN 1993-1-8',
+    'Screw: d = '+g(d)+', d1 = '+g(d1)+', ds = '+g(i.ds)+', dh = '+g(dh)+', l = '+g(i.l)+', lg = '+g(i.lg)+' mm',
+    'Plate: '+i.gradeLab+', ts = '+g(tp)+' mm, hole d0 = '+g(i.d0)+' mm, e1 = '+g(i.e1)+' mm, e2 = '+g(i.e2)+' mm',
+    'Timber: '+i.lab2+', penetration t2 = '+g(tt)+' mm, alpha = '+g(i.a2||0)+' deg',
+    'Fv,Rk = '+Math.round(r.FvRk)+' N, mode '+r.govLabel+', Fv,Rd = '+Math.round(r.FvRd)+' N, Fb,Rd = '+Math.round(r.FbRd)+' N, FRd = '+Math.round(r.FRd)+' N',
+    'Layers: TIMBER, STEEL, SCREW, THREAD (outer thread diameter), CENTER, DIM, TEXT, BREAK (assumed extent, not a real edge)'
+  ].forEach(function(t,k){X.text('TEXT',-W,yb-16-6*k,3,t);});
+  return X;
+}
+/* Markdown: inputs, results, tables and the calculation */
+function buildMarkdown(r){
+  var M=CalcMD,N=CalcCore.N,L=[],now=new Date().toISOString().slice(0,10),i=r.inp;
+  L.push('# Laterally loaded screw, steel plate to timber','');
+  L.push('Single shear, EN 1995-1-1:2004 + A1 + A2; steel plate checked to EN 1993-1-8. Exported '+now+'.','');
+  L.push('## Inputs','',M.inputs(form.rows()));
+  L.push('## Results','');
+  L.push('- **Design resistance per screw:** F_Rd = '+N(r.FRd)+' N ('+N(r.FRd/1000,2)+' kN), '+(r.plateGov?'plate bearing':'timber side')+' governs');
+  L.push('- **Timber side:** F_v,Rd = '+N(r.FvRd)+' N; **plate bearing:** F_b,Rd = '+N(r.FbRd)+' N');
+  L.push('- **Characteristic capacity:** F_v,Rk = '+N(r.FvRk)+' N, governing mode '+r.govLabel);
+  if(r.util!==null)L.push('- **Utilisation:** F_v,Ed / F_Rd = '+N(r.util,2)+' ('+(r.util<=1?'satisfied':'not satisfied')+')');
+  L.push('- **Slip modulus:** K_ser = '+N(r.Kser)+' N/mm, K_u = '+N(r.Ku)+' N/mm','');
+  L.push('## Failure modes','',M.table(['Mode','Plate','Johansen part (N)','Rope effect (N)','F_v,Rk (N)','Status'],r.modes.map(function(m){return [m.label,m.group,N(m.J),N(m.rope),N(m.F),m.tag];})));
+  L.push('## Steel plate','',M.table(['Check','Limit','Provided','Check'],[
+    ['End distance e_1','≥ '+N(r.emin,1)+' mm',N(i.e1,1)+' mm',r.e1Ok?'satisfied':'too small'],
+    ['Edge distance e_2','≥ '+N(r.emin,1)+' mm',N(i.e2,1)+' mm',r.e2Ok?'satisfied':'too small'],
+    ['Hole clearance d_0 − d_s','≤ 0.1 · d (thick plate)',N(r.clear,1)+' mm',r.tolOk?'satisfied':'exceeded'],
+    ['Bearing F_b,Rd',N(r.FbRd)+' N',r.utilP===null?'–':N(i.FEd)+' N',r.utilP===null?'–':(r.utilP<=1?'satisfied':'overloaded')]]));
+  if(r.warn.length){L.push('## Warnings','');r.warn.forEach(function(w){L.push('- '+M.text(w));});L.push('');}
+  L.push('## Calculation','',M.steps(stepsTex(r)),'');
+  L.push('---','','*Check the result against the National Annex and the product declaration (ETA) of the screw.*','');
+  return L;
+}
+/* SVG: one page with the sketch, the results and the tables */
+function svgSpec(r){
+  var N=CalcCore.N,$=CalcCore.$,i=r.inp,minis=[].slice.call(document.querySelectorAll('#modes .mini svg'));
+  var dr=[];
+  if(r.dist.T)['a3t','a3c','a4t','a4c'].forEach(function(k){var it=r.dist.T[k];
+    dr.push({cells:[DSYM[k],N(it.req,1)+' mm',it.prov===null?'–':N(it.prov,1)+' mm',it.ok===null?'not checked':it.ok?'satisfied':'too small'],hl:it.ok===false});});
+  var sel=r.modes.filter(function(x){return x.id===selected;})[0]||r.gov;
+  return {
+    title:'Laterally loaded screw, steel plate to timber',
+    subtitle:'Single shear, EN 1995-1-1:2004 + A1 + A2 and EN 1993-1-8. Design resistance FRd = '+N(r.FRd)+' N per screw ('+N(r.FRd/1000,2)+' kN).',
+    blocks:[
+      {row:[
+        {title:'Failure mode ('+sel.label+')',svg:$('sketch').querySelector('svg'),width:460},
+        {title:'Results',lines:['F_Rd = '+N(r.FRd)+' N ('+(r.plateGov?'plate bearing':'timber side')+' governs)','F_v,Rd = '+N(r.FvRd)+' N, F_b,Rd = '+N(r.FbRd)+' N','F_v,Rk = '+N(r.FvRk)+' N, mode '+r.govLabel]
+          .concat(r.util!==null?['F_v,Ed / F_Rd = '+N(r.util,2)+(r.util<=1?', satisfied':', not satisfied')]:[],
+          ['K_ser = '+N(r.Kser)+' N/mm','Screw d = '+i.d+' mm, l = '+i.l+' mm','Plate '+i.gradeLab+', t_s = '+i.ts+' mm, d_0 = '+i.d0+' mm','Timber '+i.lab2+', t_2 = '+N(r.t2)+' mm'])}
+      ]},
+      {title:'Capacity of each failure mode',table:{cols:[530,140,140,130],head:['Mode','Johansen part (N)','Rope effect (N)','F_v,Rk (N)'],
+        rows:r.modes.map(function(m,k){return {cells:['Mode ('+m.label+'), '+m.group+' plate'+(m.tag?', '+m.tag:''),N(m.J),N(m.rope),N(m.F)],hl:!!m.tag,icon:minis[k]};})}},
+      {title:'Steel plate (EN 1993-1-8)',table:{cols:[340,200,200,200],head:['Check','Limit','Provided','Check'],rowH:24,rows:[
+        {cells:['End distance e_1','≥ '+N(r.emin,1)+' mm',N(i.e1,1)+' mm',r.e1Ok?'satisfied':'too small'],hl:!r.e1Ok},
+        {cells:['Edge distance e_2','≥ '+N(r.emin,1)+' mm',N(i.e2,1)+' mm',r.e2Ok?'satisfied':'too small'],hl:!r.e2Ok},
+        {cells:['Bearing F_b,Rd',N(r.FbRd)+' N',r.utilP===null?'–':N(i.FEd)+' N',r.utilP===null?'not checked':(r.utilP<=1?'satisfied':'overloaded')],hl:r.utilP!==null&&r.utilP>1}]}},
+      {title:'Edge and end distances in the timber',table:{cols:[340,200,200,200],head:['Distance','Required','Provided','Check'],rows:dr,rowH:24}}
+    ],
+    footer:'Verify against the National Annex and the product declaration (ETA) of the screw. The net section of the plate is not checked.'
+  };
+}
+</script>
+</body>
+</html>

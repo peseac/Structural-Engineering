@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Floor beam – choice of the cross-section – EN 1995-1-1</title>
+<!-- The look comes from assets/css/calc.css; it is linked by the start-up code at the end of the page. -->
+</head>
+<body>
+<div class="wrap">
+  <h1>Floor beam: choice of the cross-section</h1>
+  <p class="sub">A simply supported timber floor beam under permanent and variable loads, designed according to EN 1995-1-1 and EN 1990. The page tries every common cross-section, checks bending (with lateral torsional buckling), shear and deflection for all load combinations, and recommends the lightest one that works. Select any cell of the table to see the full calculation for that section.</p>
+  <p class="bootmsg" id="bootmsg" hidden>The shared files were not found, so the calculator cannot start. Keep the folder <b>assets</b> next to the folder of this page (see README.md), or open the page online.</p>
+
+  <div class="layout">
+    <div class="side">
+      <form class="panel" id="inputs" autocomplete="off" onsubmit="return false"></form>
+      <div class="toolbar" id="toolbar">
+        <button type="button" class="primary wide" id="btnSave">Save copy with these values</button>
+        <button type="button" class="wide strong" id="btnPrint">Print to PDF</button>
+        <button type="button" class="strong" id="btnDxf">Export DXF</button>
+        <button type="button" class="strong" id="btnSvg">Export SVG</button>
+        <button type="button" class="wide strong" id="btnMd">Export to Markdown</button>
+        <button type="button" id="btnExample">Load the example</button>
+        <button type="button" id="btnClear">Clear all</button>
+        <button type="button" class="wide" id="btnCalc" aria-controls="calc">Hide calculation</button>
+      </div>
+    </div>
+
+    <div class="stack">
+      <ul class="warns" id="warns"></ul>
+      <div class="top">
+        <div class="panel">
+          <h2>Beam and loads</h2>
+          <div class="drawing" id="sketch"></div>
+          <p class="caption" id="caption"></p>
+        </div>
+        <div class="panel result" id="result"></div>
+      </div>
+
+      <div class="panel">
+        <h2 id="gridTitle">Cross-sections</h2>
+        <div class="scroll" id="grid"></div>
+        <p class="hint" id="gridHint"></p>
+      </div>
+
+      <div class="panel">
+        <h2 id="checksTitle">Checks of the section</h2>
+        <h3>Ultimate limit state – one row per load combination (EN 1990, 6.10)</h3>
+        <div class="scroll" id="uls"></div>
+        <h3>Serviceability – deflections (EN 1995-1-1, 2.2.3 and 7.2)</h3>
+        <div class="scroll" id="sls"></div>
+      </div>
+
+      <details class="panel" id="calc" open>
+        <summary>Calculation with units</summary>
+        <div class="steps" id="steps"></div>
+        <p class="hint" id="mjstatus">Loading MathJax…</p>
+      </details>
+    </div>
+  </div>
+</div>
+
+<script id="saved" type="application/json">null</script>
+<script>
+var SRC='<!DOCTYPE html>\n'+document.documentElement.outerHTML;
+
+/* ================================================================
+   START-UP
+   The shared files (CSS, helpers, MathJax, exports) are in the folder
+   "assets" of the repository. The first address that works is used.
+   The last one is the published repository, so a copy of this page
+   saved anywhere else still works when online.
+   The last address is the published copy on GitHub Pages (peseac/Structural-Engineering).
+   ================================================================ */
+var ASSET_BASES=['../assets/','assets/','https://peseac.github.io/Structural-Engineering/assets/'];
+(function boot(k){
+  var s=document.createElement('script');
+  s.src=ASSET_BASES[k]+'js/calc-core.js';
+  s.onload=function(){CalcCore.start(ASSET_BASES[k],main);};
+  s.onerror=function(){s.remove();if(k+1<ASSET_BASES.length)boot(k+1);else document.getElementById('bootmsg').hidden=false;};
+  document.head.appendChild(s);
+})(0);
+
+/* ================================================================
+   1. DATA
+   ================================================================ */
+/* f_m,k, f_v,k, E_0,mean, E_0,05 [MPa], rho_mean [kg/m3] – EN 338:2016, EN 14080:2013 */
+var CLASSES={
+  C14:{fm:14,fv:3.0,E:7000,E05:4700,rm:350},  C16:{fm:16,fv:3.2,E:8000,E05:5400,rm:370},  C18:{fm:18,fv:3.4,E:9000,E05:6000,rm:380},
+  C20:{fm:20,fv:3.6,E:9500,E05:6400,rm:400},  C22:{fm:22,fv:3.8,E:10000,E05:6700,rm:410}, C24:{fm:24,fv:4.0,E:11000,E05:7400,rm:420},
+  C27:{fm:27,fv:4.0,E:11500,E05:7700,rm:430}, C30:{fm:30,fv:4.0,E:12000,E05:8000,rm:460}, C35:{fm:35,fv:4.0,E:13000,E05:8700,rm:470},
+  C40:{fm:40,fv:4.0,E:14000,E05:9400,rm:480},
+  GL24h:{gl:1,fm:24,fv:3.5,E:11500,E05:9600,rm:420},  GL28h:{gl:1,fm:28,fv:3.5,E:12600,E05:10500,rm:460},
+  GL30h:{gl:1,fm:30,fv:3.5,E:13600,E05:11300,rm:480}, GL32h:{gl:1,fm:32,fv:3.5,E:14200,E05:11800,rm:490},
+  GL24c:{gl:1,fm:24,fv:3.5,E:11000,E05:9100,rm:400},  GL28c:{gl:1,fm:28,fv:3.5,E:12500,E05:10400,rm:420},
+  GL30c:{gl:1,fm:30,fv:3.5,E:13000,E05:10800,rm:430}, GL32c:{gl:1,fm:32,fv:3.5,E:13500,E05:11200,rm:440}
+};
+/* k_mod (EN 1995-1-1, Tab. 3.1, solid timber and glulam) and k_def (Tab. 3.2) */
+var DUR=['permanent','long','medium','short','instant'];
+var DUR_TXT={permanent:'permanent',long:'long-term',medium:'medium-term',short:'short-term',instant:'instantaneous'};
+var KMOD={1:[0.60,0.70,0.80,0.90,1.10],2:[0.60,0.70,0.80,0.90,1.10],3:[0.50,0.55,0.65,0.70,0.90]};
+var KDEF={1:0.6,2:0.8,3:2.0};
+/* variable actions: psi_0, psi_2 (EN 1990, Tab. A1.1) and a usual load-duration class (EN 1995-1-1, Tab. 2.2) */
+var CATS={
+  A:['Imposed, cat. A – residential',0.7,0.3,'medium'], B:['Imposed, cat. B – offices',0.7,0.3,'medium'],
+  C:['Imposed, cat. C – assembly',0.7,0.6,'medium'],    D:['Imposed, cat. D – shopping',0.7,0.6,'medium'],
+  E:['Imposed, cat. E – storage',1.0,0.8,'long'],        H:['Imposed, cat. H – roofs',0.0,0.0,'short'],
+  S:['Snow, altitude ≤ 1000 m',0.5,0.0,'short'],         W:['Wind',0.6,0.0,'instant']
+};
+/* recommended proportions of sawn sections and the slenderness limit of glulam */
+var PROP={lo:1.2,hi:1.7,target:1.4,glSlender:8};
+
+/* ================================================================
+   2. CALCULATION OF ONE CROSS-SECTION b × h [mm]
+   Units: m and kN for the beam, mm and MPa for the section.
+   ================================================================ */
+function kmodOf(P,dur){return KMOD[P.sc][DUR.indexOf(dur)];}
+function calc(P,b,h){
+  var r={b:b,h:h,A:b*h,W:b*h*h/6,I:b*h*h*h/12,ratio:h/b},C=P.C,L=P.L,Lmm=L*1000;
+  /* self weight of the beam, always as a simply supported beam */
+  r.gsw=P.selfw?P.gsw*b*h/1e6:0;
+  r.Msw=r.gsw*L*L/8;r.Vsw=r.gsw*L/2;
+  r.LC={G:{M:P.MGk+r.Msw,V:P.VGk+r.Vsw},Q1:{M:P.MQ1k,V:P.VQ1k},Q2:{M:P.MQ2k,V:P.VQ2k}};
+  /* ULS combinations (EN 1990, 6.10); k_mod of the action with the shortest duration (EN 1995-1-1, 3.1.3(2)) */
+  var has1=P.MQ1k>0||P.VQ1k>0,has2=P.MQ2k>0||P.VQ2k>0,list=[];
+  list.push({id:'G',f:{G:P.gG,Q1:0,Q2:0}});
+  if(has1)list.push({id:'G+Q1',f:{G:P.gG,Q1:P.gQ,Q2:0}});
+  if(has2)list.push({id:'G+Q2',f:{G:P.gG,Q1:0,Q2:P.gQ}});
+  if(has1&&has2&&P.psi0_2>0)list.push({id:'G+Q1+Q2',f:{G:P.gG,Q1:P.gQ,Q2:P.gQ*P.psi0_2}});
+  if(has1&&has2&&P.psi0_1>0)list.push({id:'G+Q2+Q1',f:{G:P.gG,Q1:P.gQ*P.psi0_1,Q2:P.gQ}});
+  /* lateral torsional buckling (EN 1995-1-1, 6.3.3 and Tab. 6.1) */
+  r.lef=0.9*Lmm+(P.ltb==='top'?2*h:P.ltb==='bottom'?-0.5*h:0);
+  r.scrit=0.78*b*b*C.E05/(h*r.lef);
+  r.lrel=Math.sqrt(C.fm/r.scrit);
+  r.kcrit=P.ltb==='none'?1:(r.lrel<=0.75?1:r.lrel<=1.4?1.56-0.75*r.lrel:1/(r.lrel*r.lrel));
+  r.bef=P.kcr*b;
+  r.uls=list.map(function(c){
+    var d=c.f.Q1&&c.f.Q2?(DUR.indexOf(P.dur1)>DUR.indexOf(P.dur2)?P.dur1:P.dur2):c.f.Q1?P.dur1:c.f.Q2?P.dur2:'permanent';
+    var o={id:c.id,f:c.f,dur:d,kmod:kmodOf(P,d)};
+    o.Md=c.f.G*r.LC.G.M+c.f.Q1*r.LC.Q1.M+c.f.Q2*r.LC.Q2.M;
+    o.Vd=c.f.G*r.LC.G.V+c.f.Q1*r.LC.Q1.V+c.f.Q2*r.LC.Q2.V;
+    o.fmd=o.kmod*C.fm/P.gM;o.fvd=o.kmod*C.fv/P.gM;
+    o.sig=o.Md*1e6/r.W;o.tau=1.5*o.Vd*1e3/(r.bef*h);
+    o.em=o.sig/(r.kcrit*o.fmd);o.ev=o.tau/o.fvd;o.e=Math.max(o.em,o.ev);
+    return o;
+  });
+  /* deflections: w = k_w · M_k · l² / (E · I) for each load case; the self weight as a simply supported beam */
+  var EI=C.E*r.I,wo=function(M){return P.kw*M*1e6*Lmm*Lmm/EI;};
+  r.wsw=5/384*r.gsw*Math.pow(Lmm,4)/EI;
+  r.w={G:wo(P.MGk)+r.wsw,Q1:wo(P.MQ1k),Q2:wo(P.MQ2k)};
+  var lead=[{q:'Q1',a:'Q2',p0:P.psi0_2,p2l:P.psi2_1,p2a:P.psi2_2}];
+  if(has2)lead.push({q:'Q2',a:'Q1',p0:P.psi0_1,p2l:P.psi2_2,p2a:P.psi2_1});
+  r.sls=lead.map(function(l){
+    var o={lead:l.q};
+    o.inst=r.w.G+r.w[l.q]+l.p0*r.w[l.a];
+    o.fin=r.w.G*(1+P.kdef)+r.w[l.q]*(1+l.p2l*P.kdef)+r.w[l.a]*(l.p0+l.p2a*P.kdef);
+    return o;
+  });
+  r.slsG=r.sls.reduce(function(m,x){return x.fin>m.fin?x:m;});
+  r.winst=Math.max.apply(null,r.sls.map(function(x){return x.inst;}));
+  r.wfin=r.slsG.fin;r.wnet=r.wfin-P.wc;
+  r.lim={inst:Lmm/P.lim_inst,fin:Lmm/P.lim_fin,net:Lmm/P.lim_net};
+  r.ew={inst:r.winst/r.lim.inst,fin:r.wfin/r.lim.fin,net:r.wnet/r.lim.net};
+  /* governing check */
+  var gm=r.uls.reduce(function(m,x){return x.em>m.em?x:m;}),gv=r.uls.reduce(function(m,x){return x.ev>m.ev?x:m;});
+  r.gm=gm;r.gv=gv;
+  var all=[['bending',gm.em,gm.id],['shear',gv.ev,gv.id],['deflection w_inst',r.ew.inst,''],['deflection w_fin',r.ew.fin,''],['deflection w_net,fin',r.ew.net,'']];
+  r.gov=all.reduce(function(m,x){return x[1]>m[1]?x:m;});
+  r.eta=r.gov[1];r.ok=r.eta<=1+1e-9;
+  r.mass=C.rm*b*h/1e6;
+  return r;
+}
+
+/* ================================================================
+   3. SEARCH OVER ALL SECTIONS
+   ================================================================ */
+function nums(t){return String(t||'').split(/[\s,;]+/).map(parseFloat).filter(function(x){return x>0;}).sort(function(a,b){return a-b;});}
+function sectionSet(P){
+  var w,d=[];
+  if(P.C.gl){w=nums(P.glw);for(var x=P.glh0;x<=P.glh1+1e-9&&d.length<200;x+=P.lam)d.push(+x.toFixed(3));}
+  else{w=nums(P.sw);d=nums(P.sd);}
+  return {w:w,d:d};
+}
+function search(P){
+  var S=sectionSet(P),all=[],pass=[];
+  S.w.forEach(function(b){S.d.forEach(function(h){
+    if(h<b)return;
+    var r=calc(P,b,h);all.push(r);if(r.ok)pass.push(r);
+  });});
+  function lightest(list){return list.reduce(function(m,s){return(!m||s.A<m.A-1e-9||(Math.abs(s.A-m.A)<1e-9&&s.h>m.h))?s:m;},null);}
+  var light=lightest(pass);
+  var prop=P.C.gl?lightest(pass.filter(function(s){return s.ratio<=PROP.glSlender+1e-9;}))
+                 :lightest(pass.filter(function(s){return s.ratio>=PROP.lo-1e-9&&s.ratio<=PROP.hi+1e-9;}));
+  /* the smallest passing depth for every width */
+  var perW=S.w.map(function(b){return pass.filter(function(s){return s.b===b;}).sort(function(a,c){return a.h-c.h;})[0]||null;});
+  return {S:S,all:all,pass:pass,light:light,prop:prop,rec:prop||light,perW:perW};
+}
+
+/* ================================================================
+   4. INPUTS
+   Items with adv:1 appear only in the detailed mode; their default is
+   computed by auto() from the values above them (see calc-core.js).
+   ================================================================ */
+var CLASS_OPTS='<optgroup label="Sawn timber, EN 338">'+Object.keys(CLASSES).filter(function(k){return !CLASSES[k].gl;}).map(function(k){return '<option>'+k+'</option>';}).join('')+'</optgroup>'
+  +'<optgroup label="Glulam, EN 14080">'+Object.keys(CLASSES).filter(function(k){return CLASSES[k].gl;}).map(function(k){return '<option>'+k+'</option>';}).join('')+'</optgroup>';
+var CAT_OPTS=Object.keys(CATS).map(function(k){return '<option value="'+k+'">'+CATS[k][0]+'</option>';}).join('');
+var DUR_OPTS=DUR.map(function(k){return '<option value="'+k+'">'+DUR_TXT[k]+'</option>';}).join('');
+var r3=function(x){return isFinite(x)?CalcCore.rnd(x,0.001):'';};
+
+var FIELDS=[
+  {h:'Beam'},
+  {id:'L',l:'Span ℓ',u:'m',v:3.5,s:0.1},
+  {sel:'cls',l:'Strength class',v:'C24',opts:CLASS_OPTS},
+  {sel:'sc',l:'Service class',v:'1',opts:'<option value="1">1 – heated interior</option><option value="2">2 – covered, unheated</option><option value="3">3 – exposed to weather</option>'},
+  {h:'Loads on the beam (characteristic)'},
+  {id:'gk',l:'Permanent g<sub>k</sub> (floor build-up)',u:'kN/m',v:1.5,s:0.1},
+  {id:'qk',l:'Variable q<sub>k</sub> (imposed load)',u:'kN/m',v:1.5,s:0.1},
+  {adv:1,sel:'cat1',l:'Type of q<sub>k</sub>',opts:CAT_OPTS,auto:function(){return 'A';},why:'residential floor'},
+  {adv:1,id:'psi0_1',l:'ψ<sub>0</sub> of q<sub>k</sub>',u:'–',s:0.1,auto:function(i){return CATS[i.cat1]?CATS[i.cat1][1]:'';}},
+  {adv:1,id:'psi2_1',l:'ψ<sub>2</sub> of q<sub>k</sub>',u:'–',s:0.1,auto:function(i){return CATS[i.cat1]?CATS[i.cat1][2]:'';}},
+  {adv:1,sel:'dur1',l:'Load duration of q<sub>k</sub>',opts:DUR_OPTS,auto:function(i){return CATS[i.cat1]?CATS[i.cat1][3]:'medium';},why:'EN 1995-1-1, Tab. 2.2'},
+  {adv:1,id:'q2k',l:'Second variable q<sub>2,k</sub>',u:'kN/m',s:0.1,auto:function(){return 0;}},
+  {adv:1,sel:'cat2',l:'Type of q<sub>2,k</sub>',opts:CAT_OPTS,auto:function(){return 'S';}},
+  {adv:1,id:'psi0_2',l:'ψ<sub>0</sub> of q<sub>2,k</sub>',u:'–',s:0.1,auto:function(i){return CATS[i.cat2]?CATS[i.cat2][1]:'';}},
+  {adv:1,id:'psi2_2',l:'ψ<sub>2</sub> of q<sub>2,k</sub>',u:'–',s:0.1,auto:function(i){return CATS[i.cat2]?CATS[i.cat2][2]:'';}},
+  {adv:1,sel:'dur2',l:'Load duration of q<sub>2,k</sub>',opts:DUR_OPTS,auto:function(i){return CATS[i.cat2]?CATS[i.cat2][3]:'short';}},
+  {adv:1,c:'selfw',l:'Add the self weight of the beam to the permanent load',auto:function(){return true;},why:'computed for every section'},
+  {adv:1,id:'gsw',l:'Unit weight of the timber',u:'kN/m³',s:0.1,auto:function(i){return CLASSES[i.cls]?CalcCore.rnd(CLASSES[i.cls].rm*9.81/1000,0.01):'';},why:'ρ<sub>mean</sub> · g'},
+  {adv:1,id:'gG',l:'γ<sub>G</sub>',u:'–',s:0.05,auto:function(){return 1.35;},why:'EN 1990, Tab. A1.2(B)'},
+  {adv:1,id:'gQ',l:'γ<sub>Q</sub>',u:'–',s:0.05,auto:function(){return 1.5;},why:'EN 1990, Tab. A1.2(B)'},
+  {adv:1,h:'Internal forces from your structural analysis (characteristic)'},
+  {adv:1,note:'By default they follow from the loads for a simply supported beam (M = w·ℓ²/8, V = w·ℓ/2). Overwrite them with the results of your own analysis for another static system. The deflection is w = k<sub>w</sub> · M · ℓ² / (E·I); k<sub>w</sub> = 5/48 for a simply supported beam with a uniform load. The self weight of the beam is always added as for a simply supported beam; untick it above if your analysis already contains it.'},
+  {adv:1,id:'MGk',l:'M<sub>G,k</sub>',u:'kNm',s:0.1,auto:function(i){return r3(i.gk*i.L*i.L/8);},why:'g<sub>k</sub> · ℓ² / 8'},
+  {adv:1,id:'VGk',l:'V<sub>G,k</sub>',u:'kN',s:0.1,auto:function(i){return r3(i.gk*i.L/2);}},
+  {adv:1,id:'MQ1k',l:'M<sub>Q,k</sub>',u:'kNm',s:0.1,auto:function(i){return r3(i.qk*i.L*i.L/8);},why:'q<sub>k</sub> · ℓ² / 8'},
+  {adv:1,id:'VQ1k',l:'V<sub>Q,k</sub>',u:'kN',s:0.1,auto:function(i){return r3(i.qk*i.L/2);}},
+  {adv:1,id:'MQ2k',l:'M<sub>Q2,k</sub>',u:'kNm',s:0.1,auto:function(i){return r3(i.q2k*i.L*i.L/8);}},
+  {adv:1,id:'VQ2k',l:'V<sub>Q2,k</sub>',u:'kN',s:0.1,auto:function(i){return r3(i.q2k*i.L/2);}},
+  {adv:1,id:'kw',l:'Deflection coefficient k<sub>w</sub>',u:'–',s:0.001,auto:function(){return 0.10417;},why:'5/48, simply supported beam'},
+  {adv:1,h:'Checks'},
+  {adv:1,id:'kcr',l:'Crack factor k<sub>cr</sub>',u:'–',s:0.01,auto:function(){return 0.67;},why:'EN 1995-1-1, 6.1.7'},
+  {adv:1,sel:'ltb',l:'Lateral torsional buckling',opts:'<option value="top">load on the top (compressed) edge</option><option value="centre">load at the centroid</option><option value="bottom">load on the bottom edge</option><option value="none">top edge held by the floor deck</option>',auto:function(){return 'top';},why:'not restrained, on the safe side'},
+  {adv:1,why:'German National Annex',id:'lim_inst',l:'Limit w<sub>inst</sub> ≤ ℓ / …',u:'–',s:50,auto:function(){return 300;}},
+  {adv:1,why:'German National Annex',id:'lim_fin',l:'Limit w<sub>fin</sub> ≤ ℓ / …',u:'–',s:50,auto:function(){return 200;}},
+  {adv:1,why:'German National Annex',id:'lim_net',l:'Limit w<sub>net,fin</sub> ≤ ℓ / …',u:'–',s:50,auto:function(){return 300;}},
+  {adv:1,id:'wc',l:'Precamber w<sub>c</sub>',u:'mm',s:1,auto:function(){return 0;}},
+  {adv:1,note:'EN 1995-1-1, Tab. 7.2 gives the ranges ℓ/300–ℓ/500 (w<sub>inst</sub>), ℓ/150–ℓ/300 (w<sub>fin</sub>) and ℓ/250–ℓ/350 (w<sub>net,fin</sub>); the defaults are the values of the German National Annex. Use the values of your National Annex or of the client.'},
+  {adv:1,h:'Cross-sections to try'},
+  {adv:1,type:'text',id:'sw',l:'Sawn timber, widths b',u:'mm',auto:function(){return '60, 80, 100, 120, 140, 160, 180, 200';}},
+  {adv:1,type:'text',id:'sd',l:'Sawn timber, depths h',u:'mm',auto:function(){return '80, 100, 120, 140, 160, 180, 200, 220, 240';}},
+  {adv:1,type:'text',id:'glw',l:'Glulam, widths b',u:'mm',auto:function(){return '80, 100, 120, 140, 160, 180, 200, 220, 240';}},
+  {adv:1,id:'lam',l:'Glulam, lamella thickness',u:'mm',s:1,auto:function(){return 40;}},
+  {adv:1,id:'glh0',l:'Glulam, smallest depth',u:'mm',s:40,auto:function(){return 120;}},
+  {adv:1,id:'glh1',l:'Glulam, largest depth',u:'mm',s:40,auto:function(){return 1200;}},
+  {adv:1,note:'Use the dimensions that your supplier offers. Sawn sections are recommended with h/b = 1.2 to 1.7 (about 7/5, the strongest beam cut from a log); glulam is accepted up to h/b = 8.'}
+];
+
+/* ================================================================
+   5. PAGE
+   ================================================================ */
+var form,lastP=null,lastS=null,lastR=null,pick=null;
+function main(){
+  var $=CalcCore.$;
+  form=CalcCore.form($('inputs'),FIELDS,update);
+  $('grid').addEventListener('click',function(e){
+    var b=e.target.closest('button[data-b]');if(!b)return;
+    pick={b:+b.getAttribute('data-b'),h:+b.getAttribute('data-h')};update();
+    var nb=$('grid').querySelector('button[data-b="'+pick.b+'"][data-h="'+pick.h+'"]');if(nb)nb.focus();
+  });
+  $('result').addEventListener('click',function(e){if(e.target.id==='btnRec'){pick=null;update();}});
+  function syncCalc(){$('btnCalc').textContent=$('calc').open?'Hide calculation':'Show calculation';}
+  $('calc').addEventListener('toggle',syncCalc);
+  $('btnCalc').addEventListener('click',function(){$('calc').open=!$('calc').open;syncCalc();});
+  $('btnExample').addEventListener('click',function(){form.setState(null);pick=null;update();});
+  $('btnClear').addEventListener('click',function(){form.clear();form.touched={};pick=null;update();$('L').focus();});
+  $('btnPrint').addEventListener('click',function(){window.print();});
+  $('btnSave').addEventListener('click',function(){
+    var st=form.getState(),v=st.values;st.showCalc=$('calc').open;st.pick=pick;
+    CalcCore.saveCopy(SRC,st,'floor-beam-L'+(v.L||'x')+'-'+(v.cls||'')+'.html');
+  });
+  $('btnDxf').addEventListener('click',function(){if(lastR)CalcCore.need('CalcDXF','js/export-dxf.js',function(D){D.save(fileName('dxf'),buildDXF(lastP,lastR));});});
+  $('btnMd').addEventListener('click',function(){if(lastR)CalcCore.need('CalcMD','js/export-md.js',function(M){M.save(fileName('md'),buildMarkdown(lastP,lastS,lastR));});});
+  $('btnSvg').addEventListener('click',function(){if(lastR)CalcCore.need('CalcSVG','js/export-svg.js',function(G){G.save(fileName('svg'),svgSpec(lastP,lastS,lastR));});});
+  var st=null;try{st=JSON.parse($('saved').textContent);}catch(e){}
+  form.setState(st);
+  if(st&&st.pick)pick=st.pick;
+  if(st&&typeof st.showCalc==='boolean')$('calc').open=st.showCalc;
+  syncCalc();update();
+}
+function fileName(ext){return 'floor-beam-L'+lastP.L+'-'+lastR.b+'x'+lastR.h+'-'+lastP.cls+'.'+ext;}
+function read(){
+  var i=form.read();i.C=CLASSES[i.cls];i.sc=+i.sc;
+  i.kdef=KDEF[i.sc];i.gM=i.C&&i.C.gl?1.25:1.3;
+  ['q2k','MQ2k','VQ2k','wc'].forEach(function(k){if(!(i[k]>=0))i[k]=0;});
+  return i;
+}
+function validate(P){
+  var need=['L','gk','gG','gQ','kcr','kw','gsw','lim_inst','lim_fin','lim_net','MGk','VGk'];
+  for(var k=0;k<need.length;k++)if(!(P[need[k]]>0))return 'Fill in every input with a positive value, or load the example.';
+  if(!(P.qk>=0)||!(P.MQ1k>=0)||!(P.VQ1k>=0))return 'The variable load and its internal forces cannot be negative.';
+  ['psi0_1','psi2_1','psi0_2','psi2_2'].forEach(function(k){if(!(P[k]>=0))P[k]=0;});
+  var S=sectionSet(P);
+  if(!S.w.length||!S.d.length)return 'Give at least one width and one depth to try (detailed mode, “Cross-sections to try”).';
+  if(P.C.gl&&!(P.lam>0&&P.glh1>=P.glh0))return 'Check the glulam depths: the lamella thickness must be positive and the largest depth not smaller than the smallest one.';
+  return null;
+}
+
+function update(){
+  var $=CalcCore.$,N=CalcCore.N,P=read(),err=validate(P);
+  if(err){
+    $('warns').innerHTML='<li>'+err+'</li>';
+    ['sketch','caption','grid','gridHint','uls','sls'].forEach(function(k){$(k).innerHTML='';});
+    $('result').innerHTML='<h2>Recommended cross-section</h2><p>Waiting for valid input.</p>';
+    lastR=null;CalcCore.clearSteps();return;
+  }
+  var S=search(P),warn=[];
+  /* the section shown in detail: the one the user picked, else the recommended one, else the strongest one tried */
+  var R=null;
+  if(pick)R=calc(P,pick.b,pick.h);
+  else if(S.rec)R=S.rec;
+  else R=S.all.reduce(function(m,s){return !m||s.eta<m.eta?s:m;},null);
+  if(!R){$('warns').innerHTML='<li>No cross-section with h ≥ b can be formed from the given widths and depths.</li>';return;}
+  if(!S.rec)warn.push(P.C.gl?'No glulam section up to the largest depth satisfies all checks. Try a higher strength class, larger widths or depths, or check the loads.':'No sawn section of the list satisfies all checks. Use glued laminated timber (choose a GL strength class) or larger dimensions.');
+  if(P.ltb!=='none'&&R.kcrit<1)warn.push('Lateral torsional buckling reduces the bending strength of the shown section (k<sub>crit</sub> = '+N(R.kcrit,3)+'). If the top edge is held by the floor deck, choose that option in the detailed mode.');
+  if(form.mode==='detailed'&&(form.touched.MGk||form.touched.MQ1k||form.touched.kw))warn.push('Own internal forces are used. Lateral torsional buckling and the self weight still assume a simply supported beam of span ℓ.');
+  $('warns').innerHTML=warn.map(function(w){return '<li>'+w+'</li>';}).join('');
+  $('sketch').innerHTML=sketch(P,R);
+  $('caption').innerHTML='Simply supported beam, span ℓ = '+N(P.L,2)+' m, '+P.cls+(P.selfw?', self weight '+N(R.gsw,3)+' kN/m included in G':'')+'. The cross-section is drawn to scale.';
+  /* result */
+  var isRec=S.rec&&R.b===S.rec.b&&R.h===S.rec.h,h='<h2>'+(isRec?'Recommended cross-section':'Selected cross-section')+'</h2>';
+  h+='<div class="big">'+R.b+' × '+R.h+' <small>mm</small></div><div>'+P.cls+', '+(P.C.gl?'glulam':'sawn timber')+', h/b = '+N(R.ratio,2)+'</div>';
+  h+='<dl><dt>Governing check</dt><dd>'+R.gov[0].replace('w_','w<sub>').replace(/(inst|fin|net,fin)$/,'$1</sub>')+(R.gov[2]?', '+comboName(R.gov[2],false):'')+'</dd>';
+  h+='<dt>Bending (with k<sub>crit</sub>)</dt><dd>'+N(R.gm.em*100,0)+' %</dd><dt>Shear</dt><dd>'+N(R.gv.ev*100,0)+' %</dd><dt>Deflection</dt><dd>'+N(Math.max(R.ew.inst,R.ew.fin,R.ew.net)*100,0)+' %</dd>';
+  h+='<dt>Area / mass</dt><dd>'+N(R.A/100,0)+' cm² / '+N(R.mass,1)+' kg/m</dd>';
+  if(S.light&&S.light!==S.rec)h+='<dt>Lightest of all</dt><dd>'+S.light.b+' × '+S.light.h+' mm ('+N(S.light.eta*100,0)+' %)</dd>';
+  if(!isRec&&S.rec)h+='<dt>Recommended</dt><dd>'+S.rec.b+' × '+S.rec.h+' mm ('+N(S.rec.eta*100,0)+' %)</dd>';
+  h+='</dl><div class="util'+(R.ok?'':' bad')+'"><span style="width:'+Math.min(100,R.eta*100).toFixed(1)+'%"></span></div>';
+  h+='<p class="verdict'+(R.ok?'':' bad')+'">'+(R.ok?'All checks satisfied, utilization '+N(R.eta*100,0)+' %.':'Not satisfied: utilization '+N(R.eta*100,0)+' %.')+'</p>';
+  if(!isRec&&S.rec)h+='<p class="noprint"><button type="button" class="btn small" id="btnRec">Show the recommended section</button></p>';
+  $('result').innerHTML=h;
+  $('gridTitle').textContent='Cross-sections of '+(P.C.gl?'glulam ':'sawn timber ')+P.cls+': utilization for your loads';
+  $('grid').innerHTML=gridTable(P,S,R);
+  $('gridHint').innerHTML='Each cell: governing utilization and h/b. Shaded cells satisfy all checks'+(P.C.gl?'':'; darker shading marks the recommended proportions h/b = 1.2 to 1.7')+'. ★ recommended'+(P.C.gl?' (lightest with h/b ≤ 8)':' (lightest well proportioned)')+', ◆ lightest of all. Select a cell to see its calculation. Hover a cell for the single checks.';
+  $('checksTitle').textContent='Checks of the section '+R.b+' × '+R.h+' mm';
+  $('uls').innerHTML=ulsTable(P,R);
+  $('sls').innerHTML=slsTable(P,R);
+  lastP=P;lastS=S;lastR=R;
+  CalcCore.renderSteps($('steps'),stepsTex(P,R));
+}
+
+/* names of the combinations, as HTML or as LaTeX */
+function comboName(id,tex){
+  var T={'G':['γ<sub>G</sub>·G','\\gamma_G G'],'G+Q1':['γ<sub>G</sub>·G + γ<sub>Q</sub>·Q','\\gamma_G G + \\gamma_Q Q'],'G+Q2':['γ<sub>G</sub>·G + γ<sub>Q</sub>·Q<sub>2</sub>','\\gamma_G G + \\gamma_Q Q_2'],
+    'G+Q1+Q2':['γ<sub>G</sub>·G + γ<sub>Q</sub>·Q + γ<sub>Q</sub>·ψ<sub>0,2</sub>·Q<sub>2</sub>','\\gamma_G G + \\gamma_Q Q + \\gamma_Q \\psi_{0,2} Q_2'],
+    'G+Q2+Q1':['γ<sub>G</sub>·G + γ<sub>Q</sub>·Q<sub>2</sub> + γ<sub>Q</sub>·ψ<sub>0,1</sub>·Q','\\gamma_G G + \\gamma_Q Q_2 + \\gamma_Q \\psi_{0,1} Q']};
+  return T[id][tex?1:0];
+}
+function ulsTable(P,R){
+  var N=CalcCore.N,t='<table class="cmp"><tr><th>Combination</th><th>Duration, k<sub>mod</sub></th><th>M<sub>d</sub></th><th>V<sub>d</sub></th><th>σ<sub>m,d</sub> / (k<sub>crit</sub> f<sub>m,d</sub>)</th><th>τ<sub>v,d</sub> / f<sub>v,d</sub></th></tr>';
+  R.uls.forEach(function(c){
+    var g=c===R.gm||c===R.gv;
+    t+='<tr'+(g?' class="gov"':'')+'><td>'+comboName(c.id,false)+'</td><td>'+DUR_TXT[c.dur]+', '+N(c.kmod,2)+'</td><td>'+N(c.Md,2)+' kNm</td><td>'+N(c.Vd,2)+' kN</td>'
+      +'<td'+(c.em>1?' class="bad"':'')+'>'+N(c.sig,2)+' / '+N(R.kcrit*c.fmd,2)+' = '+N(c.em*100,0)+' %</td><td'+(c.ev>1?' class="bad"':'')+'>'+N(c.tau,2)+' / '+N(c.fvd,2)+' = '+N(c.ev*100,0)+' %</td></tr>';
+  });
+  return t+'</table><p class="hint">Stresses in N/mm². The strength of each combination uses k<sub>mod</sub> of its shortest load (EN 1995-1-1, 3.1.3(2)), so the permanent load alone can govern although it is the smallest load. k<sub>crit</sub> = '+N(R.kcrit,3)+'; τ uses b<sub>ef</sub> = k<sub>cr</sub>·b = '+N(R.bef,1)+' mm.</p>';
+}
+function slsTable(P,R){
+  var N=CalcCore.N,L=P.L*1000,rows=[['w<sub>inst</sub>','characteristic combination',R.winst,R.lim.inst,P.lim_inst,R.ew.inst],
+    ['w<sub>fin</sub>','with creep k<sub>def</sub> = '+N(P.kdef,1),R.wfin,R.lim.fin,P.lim_fin,R.ew.fin],
+    ['w<sub>net,fin</sub>','w<sub>fin</sub> − w<sub>c</sub>',R.wnet,R.lim.net,P.lim_net,R.ew.net]];
+  var t='<table class="cmp"><tr><th>Deflection</th><th>Value</th><th>as ℓ / …</th><th>Limit</th><th>Utilization</th></tr>';
+  rows.forEach(function(x){t+='<tr><td>'+x[0]+'<small>'+x[1]+'</small></td><td>'+N(x[2],2)+' mm</td><td>ℓ / '+(x[2]>0?N(L/x[2],0):'∞')+'</td><td>ℓ / '+N(x[4],0)+' = '+N(x[3],2)+' mm</td><td'+(x[5]>1?' class="bad"':'')+'>'+N(x[5]*100,0)+' %</td></tr>';});
+  return t+'</table><p class="hint">Contributions w<sub>inst</sub>: G '+N(R.w.G,2)+' mm'+(P.selfw?' (of which self weight '+N(R.wsw,2)+' mm)':'')+', Q '+N(R.w.Q1,2)+' mm'+(R.w.Q2>0?', Q<sub>2</sub> '+N(R.w.Q2,2)+' mm':'')+'. Vibration of the floor (EN 1995-1-1, 7.3) is not checked.</p>';
+}
+function gridTable(P,S,R){
+  var N=CalcCore.N,d=S.S.d;
+  if(P.C.gl){var top=Math.max(480,(S.rec?S.rec.h:0)+2*P.lam,R.h);d=d.filter(function(h){return h<=top+1e-9;});}
+  var map={};S.all.forEach(function(s){map[s.b+'x'+s.h]=s;});
+  var t='<table class="secgrid"><tr><th class="corner">b ↓ h →</th>'+d.map(function(h){return '<th>'+h+'</th>';}).join('')+'</tr>';
+  S.S.w.forEach(function(b){
+    t+='<tr><th>'+b+'</th>';
+    d.forEach(function(h){
+      var s=map[b+'x'+h];
+      if(!s){t+='<td class="void">·</td>';return;}
+      var c=[s.ok?'ok':'no'];
+      if(s.ok&&(P.C.gl?s.ratio<=PROP.glSlender:s.ratio>=PROP.lo-1e-9&&s.ratio<=PROP.hi+1e-9))c.push('prop');
+      if(S.rec===s)c.push('rec');if(S.light===s)c.push('light');
+      if(R.b===b&&R.h===h)c.push('pick');
+      var tip=b+' × '+h+' mm: bending '+N(s.gm.em*100,0)+' %, shear '+N(s.gv.ev*100,0)+' %, w_inst '+N(s.ew.inst*100,0)+' %, w_fin '+N(s.ew.fin*100,0)+' %, w_net,fin '+N(s.ew.net*100,0)+' %';
+      t+='<td class="'+c.join(' ')+'"><button type="button" data-b="'+b+'" data-h="'+h+'" title="'+tip+'" aria-label="'+tip+'" aria-pressed="'+(R.b===b&&R.h===h)+'"><b>'+N(s.eta*100,0)+' %</b><small>'+N(s.ratio,2)+'</small></button></td>';
+    });
+    t+='</tr>';
+  });
+  return t+'</table>';
+}
+
+/* ================================================================
+   6. CALCULATION STEPS (LaTeX; plain text without MathJax)
+   ================================================================ */
+function stepsTex(P,R){
+  var R_=String.raw,n=CalcCore.Ntex,sub=CalcCore.sub,C=P.C,o='',L=P.L,b=R.b,h=R.h;
+  var mm=R_`\,\text{mm}`,MPa=R_`\,\text{N/mm}^2`,kNm=R_`\,\text{kNm}`,kN=R_`\,\text{kN}`,kNpm=R_`\,\text{kN/m}`,m=R_`\,\text{m}`;
+  function H(t){o+='<h4>'+t+'</h4>';}
+  function E(t){o+='<div class="eq">\\['+t+'\\]</div>';}
+  function Q(t){o+='<p class="note">'+sub(t)+'</p>';}
+  function A(lines){E(R_`\begin{aligned}`+lines.join(R_` \\[4pt] `)+R_`\end{aligned}`);}
+  var simple=!(form.touched.MGk||form.touched.VGk||form.touched.MQ1k||form.touched.VQ1k||form.touched.MQ2k||form.touched.VQ2k);
+
+  H('1. Material '+P.cls+' and factors');
+  E(R_`f_{\mathrm{m,k}} = ${C.fm}${MPa},\quad f_{\mathrm{v,k}} = ${n(C.fv,1)}${MPa},\quad E_{0,\mathrm{mean}} = ${n(C.E)}${MPa},\quad E_{0,05} = ${n(C.E05)}${MPa}`);
+  E(R_`\gamma_{\mathrm{M}} = ${P.gM} \quad \text{(${C.gl?'glulam':'solid timber'})},\qquad k_{\mathrm{def}} = ${P.kdef} \quad \text{(service class ${P.sc})},\qquad k_{\mathrm{cr}} = ${P.kcr}`);
+
+  H('2. Cross-section '+b+' × '+h+' mm');
+  E(R_`A = b \cdot h = ${b} \cdot ${h} = ${n(R.A)}\,\text{mm}^2`);
+  E(R_`W_y = \frac{b \cdot h^2}{6} = \frac{${b} \cdot ${h}^2}{6} = ${n(R.W)}\,\text{mm}^3,\qquad I_y = \frac{b \cdot h^3}{12} = \frac{${b} \cdot ${h}^3}{12} = ${n(R.I)}\,\text{mm}^4`);
+  if(P.selfw)E(R_`g_{\mathrm{sw}} = \gamma_{\mathrm{timber}} \cdot A = ${n(P.gsw,2)}\,\text{kN/m}^3 \cdot ${n(R.A/1e6,4)}\,\text{m}^2 = ${n(R.gsw,3)}${kNpm}`);
+
+  H('3. Characteristic internal forces of the load cases');
+  if(simple){
+    Q('Simply supported beam with uniform loads: M = w · ℓ² / 8 at midspan, V = w · ℓ / 2 at the supports.');
+    E(R_`M_{G,k} = \frac{${P.selfw?'(g_k + g_{\\mathrm{sw}})':'g_k'} \cdot \ell^2}{8} = \frac{${P.selfw?'('+n(P.gk,2)+' + '+n(R.gsw,3)+')':n(P.gk,2)} \cdot ${n(L,2)}^2}{8} = ${n(R.LC.G.M,3)}${kNm},\qquad V_{G,k} = ${n(R.LC.G.V,3)}${kN}`);
+    E(R_`M_{Q,k} = \frac{q_k \cdot \ell^2}{8} = \frac{${n(P.qk,2)} \cdot ${n(L,2)}^2}{8} = ${n(R.LC.Q1.M,3)}${kNm},\qquad V_{Q,k} = \frac{q_k \cdot \ell}{2} = ${n(R.LC.Q1.V,3)}${kN}`);
+    if(R.LC.Q2.M>0)E(R_`M_{Q_2,k} = \frac{q_{2,k} \cdot \ell^2}{8} = ${n(R.LC.Q2.M,3)}${kNm},\qquad V_{Q_2,k} = ${n(R.LC.Q2.V,3)}${kN}`);
+  }else{
+    Q('Internal forces entered from your structural analysis; the self weight of the beam is added as for a simply supported beam.');
+    E(R_`M_{G,k} = ${n(P.MGk,3)}${P.selfw?' + '+n(R.Msw,3):''} = ${n(R.LC.G.M,3)}${kNm},\qquad V_{G,k} = ${n(P.VGk,3)}${P.selfw?' + '+n(R.Vsw,3):''} = ${n(R.LC.G.V,3)}${kN}`);
+    E(R_`M_{Q,k} = ${n(R.LC.Q1.M,3)}${kNm},\qquad V_{Q,k} = ${n(R.LC.Q1.V,3)}${kN}`+(R.LC.Q2.M>0||R.LC.Q2.V>0?R_`,\qquad M_{Q_2,k} = ${n(R.LC.Q2.M,3)}${kNm},\qquad V_{Q_2,k} = ${n(R.LC.Q2.V,3)}${kN}`:''));
+  }
+
+  H('4. Lateral torsional buckling (6.3.3)');
+  if(P.ltb==='none'){Q('The compressed edge is held by the floor deck, so k_crit = 1.');E(R_`k_{\mathrm{crit}} = 1`);}
+  else{
+    var lt={top:'0.9 \\cdot \\ell + 2h',centre:'0.9 \\cdot \\ell',bottom:'0.9 \\cdot \\ell - 0.5h'}[P.ltb];
+    E(R_`\ell_{\mathrm{ef}} = ${lt} = ${n(R.lef,0)}${mm} \quad \text{(Tab. 6.1, uniform load)}`);
+    E(R_`\sigma_{\mathrm{m,crit}} = \frac{0.78 \cdot b^2}{h \cdot \ell_{\mathrm{ef}}} \cdot E_{0,05} = \frac{0.78 \cdot ${b}^2}{${h} \cdot ${n(R.lef,0)}} \cdot ${n(C.E05)} = ${n(R.scrit,2)}${MPa}`);
+    E(R_`\lambda_{\mathrm{rel,m}} = \sqrt{\frac{f_{\mathrm{m,k}}}{\sigma_{\mathrm{m,crit}}}} = \sqrt{\frac{${C.fm}}{${n(R.scrit,2)}}} = ${n(R.lrel,3)} \;\Rightarrow\; k_{\mathrm{crit}} = ${n(R.kcrit,3)} \quad \text{(6.34)}`);
+  }
+
+  H('5. Ultimate limit state, all combinations (EN 1990, 6.10)');
+  Q('k_mod belongs to the load with the shortest duration in the combination (3.1.3(2)). f_m,d = k_mod · f_m,k / γ_M, f_v,d = k_mod · f_v,k / γ_M, b_ef = k_cr · b = '+CalcCore.N(R.bef,1)+' mm.');
+  R.uls.forEach(function(c,k){
+    var M='',V='';
+    ['G','Q1','Q2'].forEach(function(lc){if(c.f[lc]>0){var s=lc==='G'?'G':lc==='Q1'?'Q':'Q_2';M+=(M?' + ':'')+n(c.f[lc],3)+R_` \cdot ${n(R.LC[lc].M,3)}`;V+=(V?' + ':'')+n(c.f[lc],3)+R_` \cdot ${n(R.LC[lc].V,3)}`;}});
+    A([R_`\text{(${k+1})}\quad & ${comboName(c.id,true)}:\quad k_{\mathrm{mod}} = ${c.kmod} \;\text{(${DUR_TXT[c.dur]})},\quad f_{\mathrm{m,d}} = ${n(c.fmd,2)}${MPa},\quad f_{\mathrm{v,d}} = ${n(c.fvd,2)}${MPa}`,
+       R_`& M_d = ${M} = ${n(c.Md,3)}${kNm},\qquad V_d = ${V} = ${n(c.Vd,3)}${kN}`,
+       R_`& \frac{\sigma_{\mathrm{m,d}}}{k_{\mathrm{crit}} \cdot f_{\mathrm{m,d}}} = \frac{M_d / W_y}{k_{\mathrm{crit}} \cdot f_{\mathrm{m,d}}} = \frac{${n(c.sig,2)}}{${n(R.kcrit,3)} \cdot ${n(c.fmd,2)}} = ${n(c.em*100,1)}\,\%,\qquad \frac{\tau_{\mathrm{v,d}}}{f_{\mathrm{v,d}}} = \frac{1.5 \cdot V_d / (b_{\mathrm{ef}} \cdot h)}{f_{\mathrm{v,d}}} = \frac{${n(c.tau,3)}}{${n(c.fvd,2)}} = ${n(c.ev*100,1)}\,\%`]);
+  });
+  E(R_`\text{Bending governs in combination (${R.uls.indexOf(R.gm)+1}): } ${n(R.gm.em*100,1)}\,\%,\qquad \text{shear in combination (${R.uls.indexOf(R.gv)+1}): } ${n(R.gv.ev*100,1)}\,\%`);
+
+  H('6. Serviceability, deflections (2.2.3, 7.2)');
+  Q(simple?'w = 5 · w_k · ℓ⁴ / (384 · E_0,mean · I), written as w = k_w · M_k · ℓ² / (E_0,mean · I) with k_w = 5/48.':'w = k_w · M_k · ℓ² / (E_0,mean · I) with your coefficient k_w = '+P.kw+'.');
+  E(R_`w_{\mathrm{inst},G} = ${n(R.w.G,2)}${mm},\qquad w_{\mathrm{inst},Q} = k_w \cdot \frac{M_{Q,k} \cdot \ell^2}{E_{0,\mathrm{mean}} \cdot I_y} = ${n(P.kw,5)} \cdot \frac{${n(P.MQ1k*1e6,0)} \cdot ${n(L*1000,0)}^2}{${n(C.E)} \cdot ${n(R.I)}} = ${n(R.w.Q1,2)}${mm}`+(R.w.Q2>0?R_`,\qquad w_{\mathrm{inst},Q_2} = ${n(R.w.Q2,2)}${mm}`:''));
+  R.sls.forEach(function(s){
+    var a=s.lead==='Q1'?'Q_2':'Q',l=s.lead==='Q1'?'Q':'Q_2',p0=s.lead==='Q1'?P.psi0_2:P.psi0_1,p2l=s.lead==='Q1'?P.psi2_1:P.psi2_2,p2a=s.lead==='Q1'?P.psi2_2:P.psi2_1;
+    var wa=s.lead==='Q1'?R.w.Q2:R.w.Q1,wl=R.w[s.lead];
+    if(R.sls.length>1)Q('Leading variable load: '+(s.lead==='Q1'?'q_k':'q_2,k')+'.');
+    A([R_`w_{\mathrm{inst}} &= w_{G} + w_{${l}}`+(wa>0?R_` + \psi_0 \, w_{${a}}`:'')+R_` = ${n(R.w.G,2)} + ${n(wl,2)}`+(wa>0?R_` + ${p0} \cdot ${n(wa,2)}`:'')+R_` = ${n(s.inst,2)}${mm}`,
+       R_`w_{\mathrm{fin}} &= w_{G}(1 + k_{\mathrm{def}}) + w_{${l}}(1 + \psi_{2} k_{\mathrm{def}})`+(wa>0?R_` + w_{${a}}(\psi_0 + \psi_2 k_{\mathrm{def}})`:'')
+        +R_` = ${n(R.w.G,2)} \cdot ${n(1+P.kdef,2)} + ${n(wl,2)} \cdot ${n(1+p2l*P.kdef,3)}`+(wa>0?R_` + ${n(wa,2)} \cdot ${n(p0+p2a*P.kdef,3)}`:'')+R_` = ${n(s.fin,2)}${mm}`]);
+  });
+  E(R_`w_{\mathrm{net,fin}} = w_{\mathrm{fin}} - w_c = ${n(R.wfin,2)} - ${n(P.wc,1)} = ${n(R.wnet,2)}${mm}`);
+  A([R_`\frac{w_{\mathrm{inst}}}{\ell/${P.lim_inst}} &= \frac{${n(R.winst,2)}}{${n(R.lim.inst,2)}} = ${n(R.ew.inst*100,1)}\,\%`,
+     R_`\frac{w_{\mathrm{fin}}}{\ell/${P.lim_fin}} &= \frac{${n(R.wfin,2)}}{${n(R.lim.fin,2)}} = ${n(R.ew.fin*100,1)}\,\%`,
+     R_`\frac{w_{\mathrm{net,fin}}}{\ell/${P.lim_net}} &= \frac{${n(R.wnet,2)}}{${n(R.lim.net,2)}} = ${n(R.ew.net*100,1)}\,\%`]);
+
+  H('7. Result');
+  E(R_`\eta = \max(${n(R.gm.em*100,1)};\ ${n(R.gv.ev*100,1)};\ ${n(R.ew.inst*100,1)};\ ${n(R.ew.fin*100,1)};\ ${n(R.ew.net*100,1)})\,\% = ${n(R.eta*100,1)}\,\% \quad \text{${R.ok?'satisfied':'not satisfied'}}`);
+  Q('Not checked: bearing at the supports (compression perpendicular to the grain), notches, vibration of the floor, fire resistance.');
+  return o;
+}
+
+/* ================================================================
+   7. DRAWING (SVG on the page)
+   ================================================================ */
+function sketch(P,R){
+  var N=CalcCore.N,W=700,x0=40,x1=370,yb=142,o='<svg viewBox="0 0 '+W+' 262" role="img" aria-label="Simply supported beam with loads and the cross-section">';
+  var gTot=P.gk+(P.selfw?R.gsw:0),qTot=P.qk+(P.q2k||0),tot=gTot+qTot||1;
+  var hg=Math.max(14,70*gTot/tot),hq=qTot>0?Math.max(14,70*qTot/tot):0,yg=yb-14,yq=yg-hg-6;
+  function band(y0,hh,cls,label){
+    var s='<rect x="'+x0+'" y="'+(y0-hh)+'" width="'+(x1-x0)+'" height="'+hh+'" class="'+cls+'" opacity=".55"/>';
+    for(var k=0;k<=12;k++){var x=x0+(x1-x0)*k/12;s+='<line class="dim" x1="'+x+'" x2="'+x+'" y1="'+(y0-hh)+'" y2="'+(y0-2)+'"/><polygon class="ahead" points="'+x+','+y0+' '+(x-3)+','+(y0-6)+' '+(x+3)+','+(y0-6)+'"/>';}
+    return s+'<text class="txt" x="'+(x1+10)+'" y="'+(y0-hh/2+4)+'">'+label+'</text>';
+  }
+  o+=band(yg,hg,'m2','g = '+N(gTot,2)+' kN/m');
+  if(hq)o+=band(yq,hq,'m1','q = '+N(qTot,2)+' kN/m');
+  o+='<rect class="m1" x="'+x0+'" y="'+yb+'" width="'+(x1-x0)+'" height="12"/>';
+  function sup(x,roll){var s='<polygon fill="none" class="edge" points="'+x+','+(yb+12)+' '+(x-10)+','+(yb+30)+' '+(x+10)+','+(yb+30)+'"/>';var yg2=yb+30;if(roll){s+='<circle class="edge" fill="none" cx="'+(x-5)+'" cy="'+(yb+34)+'" r="3.5"/><circle class="edge" fill="none" cx="'+(x+5)+'" cy="'+(yb+34)+'" r="3.5"/>';yg2=yb+38;}s+='<line class="edge" x1="'+(x-16)+'" x2="'+(x+16)+'" y1="'+yg2+'" y2="'+yg2+'"/>';for(var k=-14;k<=12;k+=6)s+='<line class="dim" x1="'+(x+k)+'" x2="'+(x+k-5)+'" y1="'+(yg2+1)+'" y2="'+(yg2+7)+'"/>';return s;}
+  o+=sup(x0,false)+sup(x1,true);
+  o+='<path class="dim" d="M'+x0+' '+(yb+62)+'H'+x1+'M'+x0+' '+(yb+56)+'v12M'+x1+' '+(yb+56)+'v12"/><text class="txt" text-anchor="middle" x="'+((x0+x1)/2)+'" y="'+(yb+80)+'">ℓ = '+N(P.L,2)+' m</text>';
+  /* cross-section to scale */
+  var s=Math.min(170/R.h,120/R.b),w=R.b*s,hh=R.h*s,cx=615,cy=128,xl=cx-w/2,yt=cy-hh/2,px=xl+w*0.58,py=yt+hh*0.56,cid='cs'+R.b+'x'+R.h;
+  o+='<clipPath id="'+cid+'"><rect x="'+xl+'" y="'+yt+'" width="'+w+'" height="'+hh+'"/></clipPath><rect class="m1" x="'+xl+'" y="'+yt+'" width="'+w+'" height="'+hh+'"/><g clip-path="url(#'+cid+')">';
+  for(var k=1;k<40;k++){var rr=k*Math.min(w,hh)/9;if(rr>Math.hypot(w,hh))break;o+='<circle class="grain" fill="none" cx="'+px.toFixed(1)+'" cy="'+py.toFixed(1)+'" r="'+rr.toFixed(1)+'"/>';}
+  o+='</g><rect class="edge" x="'+xl+'" y="'+yt+'" width="'+w+'" height="'+hh+'"/>';
+  o+='<path class="dim" d="M'+(xl-14)+' '+yt+'V'+(yt+hh)+'M'+(xl-19)+' '+yt+'h10M'+(xl-19)+' '+(yt+hh)+'h10"/><text class="txt m" text-anchor="middle" transform="rotate(-90 '+(xl-22)+' '+cy+')" x="'+(xl-22)+'" y="'+cy+'">h = '+R.h+' mm</text>';
+  o+='<path class="dim" d="M'+xl+' '+(yt+hh+14)+'H'+(xl+w)+'M'+xl+' '+(yt+hh+9)+'v10M'+(xl+w)+' '+(yt+hh+9)+'v10"/><text class="txt m" text-anchor="middle" x="'+cx+'" y="'+(yt+hh+30)+'">b = '+R.b+' mm</text>';
+  o+='<text class="txt m" text-anchor="middle" x="'+cx+'" y="'+(yt-10)+'">'+P.cls+'</text>';
+  return o+'</svg>';
+}
+
+/* ================================================================
+   8. EXPORTS (the writers are in assets/js/export-*.js)
+   ================================================================ */
+function buildDXF(P,R){
+  var X=CalcDXF.create([['TIMBER',30,'CONTINUOUS'],['SUPPORT',8,'CONTINUOUS'],['CENTER',1,'CENTER'],['DIM',3,'CONTINUOUS'],['TEXT',7,'CONTINUOUS']]);
+  var L=P.L*1000,b=R.b,h=R.h,th=Math.max(20,L/120);
+  /* elevation 1:1 */
+  X.path('TIMBER',[[0,0],[L,0],[L,h],[0,h]],true);
+  X.line('CENTER',-60,h/2,L+60,h/2);
+  [0,L].forEach(function(x){X.path('SUPPORT',[[x,0],[x-th*1.5,-th*2.5],[x+th*1.5,-th*2.5]],true);});
+  X.dimH(-th*5,0,L,'l = '+L+' mm');
+  X.dimV(-th*3,0,h,'h = '+h);
+  X.text('TEXT',0,h+th*2,th*1.2,'ELEVATION (1:1, mm) - simply supported beam');
+  /* section 1:1 */
+  var sx=L+th*15;
+  X.path('TIMBER',[[sx,0],[sx+b,0],[sx+b,h],[sx,h]],true);
+  X.line('CENTER',sx-30,h/2,sx+b+30,h/2);X.line('CENTER',sx+b/2,-30,sx+b/2,h+30);
+  X.dimH(-th*2,sx,sx+b,'b = '+b);X.dimV(sx+b+th*2,0,h,'h = '+h);
+  X.text('TEXT',sx,h+th*2,th*1.2,'SECTION');
+  [ 'Floor beam, EN 1995-1-1: '+P.cls+', section '+b+' x '+h+' mm, span '+P.L+' m, service class '+P.sc,
+    'Loads: gk = '+P.gk+' kN/m'+(P.selfw?' + self weight '+R.gsw.toFixed(3)+' kN/m':'')+', qk = '+P.qk+' kN/m'+(P.q2k>0?', q2k = '+P.q2k+' kN/m':''),
+    'Utilization '+(R.eta*100).toFixed(0)+' % ('+R.gov[0]+'), bending '+(R.gm.em*100).toFixed(0)+' %, shear '+(R.gv.ev*100).toFixed(0)+' %',
+    'w_inst = '+R.winst.toFixed(2)+' mm, w_fin = '+R.wfin.toFixed(2)+' mm, w_net,fin = '+R.wnet.toFixed(2)+' mm'
+  ].forEach(function(t,k){X.text('TEXT',0,-th*9-th*1.8*k,th,t);});
+  return X;
+}
+function perWidthRows(S){
+  var N=CalcCore.N;
+  return S.S.w.map(function(b,k){var s=S.perW[k];return s?[b+' mm',s.h+' mm',N(s.ratio,2),N(s.A/100,0),N(s.eta*100,0)+' %',s.gov[0]]:[b+' mm','–','–','–','–','no depth of the list works'];});
+}
+function buildMarkdown(P,S,R){
+  var M=CalcMD,N=CalcCore.N,L=[],now=new Date().toISOString().slice(0,10);
+  L.push('# Floor beam: choice of the cross-section','','Simply supported timber beam, EN 1995-1-1 and EN 1990. Exported '+now+'.','');
+  L.push('## Inputs','',M.inputs(form.rows()));
+  L.push('## Result','');
+  if(S.rec)L.push('- **Recommended section:** '+S.rec.b+' × '+S.rec.h+' mm '+P.cls+', utilization '+N(S.rec.eta*100,0)+' % ('+S.rec.gov[0]+')');
+  else L.push('- **No section of the list satisfies all checks.**');
+  if(S.light&&S.light!==S.rec)L.push('- **Lightest section:** '+S.light.b+' × '+S.light.h+' mm, utilization '+N(S.light.eta*100,0)+' %');
+  L.push('- **Section shown in detail:** '+R.b+' × '+R.h+' mm, utilization '+N(R.eta*100,0)+' % ('+(R.ok?'satisfied':'not satisfied')+')','');
+  L.push('## Smallest depth for every width','',M.table(['Width b','Depth h','h/b','Area [cm²]','Utilization','Governing'],perWidthRows(S)));
+  L.push('## ULS combinations of '+R.b+' × '+R.h+' mm','',M.table(['Combination','k_mod','M_d [kNm]','V_d [kN]','Bending','Shear'],R.uls.map(function(c){return [M.text(comboName(c.id,false)),N(c.kmod,2),N(c.Md,2),N(c.Vd,2),N(c.em*100,0)+' %',N(c.ev*100,0)+' %'];})));
+  L.push('## Deflections','',M.table(['Deflection','Value [mm]','Limit [mm]','Utilization'],[['w_inst',N(R.winst,2),N(R.lim.inst,2),N(R.ew.inst*100,0)+' %'],['w_fin',N(R.wfin,2),N(R.lim.fin,2),N(R.ew.fin*100,0)+' %'],['w_net,fin',N(R.wnet,2),N(R.lim.net,2),N(R.ew.net*100,0)+' %']]));
+  L.push('## Calculation','',M.steps(stepsTex(P,R)),'');
+  L.push('---','','*Not checked: bearing at the supports, notches, vibration, fire. Check the values against your National Annex.*','');
+  return L;
+}
+function svgSpec(P,S,R){
+  var N=CalcCore.N;
+  return {
+    title:'Floor beam: '+R.b+' × '+R.h+' mm '+P.cls,
+    subtitle:'Simply supported, span '+N(P.L,2)+' m, EN 1995-1-1. Utilization '+N(R.eta*100,0)+' % ('+R.gov[0]+').'+(S.rec?' Recommended section: '+S.rec.b+' × '+S.rec.h+' mm.':''),
+    blocks:[
+      {row:[{title:'Beam, loads and section',svg:CalcCore.$('sketch').querySelector('svg'),width:600},
+            {title:'Result',lines:['Bending: '+N(R.gm.em*100,0)+' %','Shear: '+N(R.gv.ev*100,0)+' %','w_inst: '+N(R.winst,2)+' mm ('+N(R.ew.inst*100,0)+' %)','w_fin: '+N(R.wfin,2)+' mm ('+N(R.ew.fin*100,0)+' %)','w_net,fin: '+N(R.wnet,2)+' mm ('+N(R.ew.net*100,0)+' %)','k_crit = '+N(R.kcrit,3),'Mass '+N(R.mass,1)+' kg/m']}]},
+      {title:'Smallest depth for every width',table:{cols:[160,160,120,140,160,200],head:['Width b','Depth h','h/b','Area [cm²]','Utilization','Governing'],rowH:24,
+        rows:perWidthRows(S).map(function(r,k){var s=S.perW[k];return {cells:r,hl:!!(s&&S.rec===s)};})}},
+      {title:'ULS combinations',table:{cols:[400,110,110,110,110,100],head:['Combination','k_mod','M_d [kNm]','V_d [kN]','Bending','Shear'],rowH:24,
+        rows:R.uls.map(function(c){return {cells:[comboName(c.id,false),N(c.kmod,2),N(c.Md,2),N(c.Vd,2),N(c.em*100,0)+' %',N(c.ev*100,0)+' %'],hl:c===R.gm};})}}
+    ],
+    footer:'Not checked: bearing at the supports, notches, vibration, fire. Check the values against your National Annex.'
+  };
+}
+</script>
+</body>
+</html>

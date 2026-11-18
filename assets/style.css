@@ -1,52 +1,57 @@
+/* Timber Engineering – HTML Calculators
+   Calm, light style: grey background, white cards, one blue accent. */
 :root {
-    --primary: #1e3a8a;
-    --primary-light: #3b82f6;
-    --bg-color: #f8fafc;
-    --card-bg: #ffffff;
-    --text-color: #334155;
-    --border-color: #e2e8f0;
+    --bg: #f4f6f8;          /* page background */
+    --card: #ffffff;        /* card background */
+    --ink: #1d2733;         /* main text */
+    --mute: #5f6b7a;        /* secondary text */
+    --line: #d5dbe2;        /* borders */
+    --acc: #1f6feb;         /* accent (links, hover) */
+    --wood-bg: #f6ead2;     /* timber tone */
+    --wood-ink: #7a5a2b;
 }
 
 * {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 body {
-    background-color: var(--bg-color);
-    color: var(--text-color);
-    line-height: 1.6;
+    font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 15px;
+    line-height: 1.5;
     display: flex;
     flex-direction: column;
     min-height: 100vh;
 }
 
 .container {
-    max-width: 1100px;
+    max-width: 1200px;
     margin: 0 auto;
     padding: 0 20px;
     width: 100%;
 }
 
-.hero {
-    background: linear-gradient(135deg, var(--primary), var(--primary-light));
-    color: white;
-    padding: 40px 0;
-    text-align: center;
-    margin-bottom: 30px;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+/* ---------- Header ---------- */
+.page-head {
+    background: var(--card);
+    border-bottom: 1px solid var(--line);
+    border-top: 4px solid var(--acc);
+    padding: 26px 0 20px;
+    margin-bottom: 24px;
 }
 
-.hero h1 {
-    font-size: 2.2rem;
-    margin-bottom: 10px;
+.page-head h1 {
+    font-size: 1.6rem;
+    margin-bottom: 6px;
 }
 
-.hero p {
-    font-size: 1.1rem;
-    opacity: 0.9;
+.intro {
+    color: var(--mute);
+    max-width: 900px;
 }
 
 main {
@@ -54,100 +59,180 @@ main {
     padding-bottom: 40px;
 }
 
+/* ---------- Grid of cards ---------- */
 .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-    gap: 24px;
+    grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr));
+    gap: 16px;
 }
 
 .card {
-    background: var(--card-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    padding: 24px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 14px 16px;
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    transition: border-color .15s, box-shadow .15s, transform .15s;
 }
 
 .card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05);
+    border-color: var(--acc);
+    box-shadow: 0 4px 14px rgba(31, 111, 235, .15);
+    transform: translateY(-1px);
+}
+
+.card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
 }
 
 .card-badge {
-    display: inline-block;
-    font-size: 0.75rem;
+    font-size: 11px;
+    font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    font-weight: 700;
-    background: #e0f2fe;
-    color: #0369a1;
-    padding: 4px 8px;
-    border-radius: 4px;
-    margin-bottom: 12px;
-    align-self: flex-start;
+    letter-spacing: .04em;
+    padding: 2px 10px;
+    border-radius: 999px;
+    background: #e3ecfb;
+    color: #1d4fa8;
 }
 
 .student-badge {
-    background: #fef3c7;
-    color: #b45309;
+    background: var(--wood-bg);
+    color: var(--wood-ink);
+}
+
+.card-tag {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: #e3e8ee;
+    color: #3d4853;
 }
 
 .student-template {
     border-style: dashed;
-    border-color: #cbd5e1;
+    border-color: #b9c2cc;
 }
 
 .card h2 {
-    font-size: 1.25rem;
-    color: var(--primary);
+    font-size: 1.05rem;
+    margin-bottom: 8px;
+}
+
+/* ---------- Sketch (separate .svg file) ---------- */
+.sketch {
+    background: #fbfcfd;
+    border: 1px solid #e3e8ee;
+    border-radius: 6px;
+    padding: 6px;
     margin-bottom: 10px;
 }
 
+.sketch img {
+    display: block;
+    width: 100%;
+    height: 160px;
+    object-fit: contain;
+}
+
 .card p {
-    font-size: 0.95rem;
-    color: #64748b;
-    margin-bottom: 20px;
+    font-size: 0.9rem;
+    color: var(--mute);
+    margin-bottom: 14px;
     flex-grow: 1;
 }
 
+/* ---------- Buttons ---------- */
 .card-links {
     display: flex;
-    flex-direction: column;
-    gap: 8px;
+    flex-wrap: wrap;
+    gap: 6px;
 }
 
 .btn {
-    display: block;
+    flex: 1 1 auto;
     text-align: center;
-    padding: 8px 12px;
-    border-radius: 6px;
-    font-size: 0.9rem;
-    font-weight: 600;
+    padding: 6px 12px;
+    border: 1px solid #b9c2cc;
+    border-radius: 999px;
+    background: #fff;
+    color: var(--ink);
+    font-size: 0.85rem;
+    font-weight: 500;
     text-decoration: none;
-    transition: background 0.2s;
+    white-space: nowrap;
+    transition: background .15s, border-color .15s, color .15s;
 }
 
-.btn-pdf { background: #fee2e2; color: #991b1b; }
-.btn-pdf:hover { background: #fecaca; }
+.btn:hover {
+    background: #eef3fb;
+    border-color: var(--acc);
+}
 
-.btn-smath { background: #e0e7ff; color: #3730a3; }
-.btn-smath:hover { background: #c7d2fe; }
+/* main action = filled accent button */
+.btn-web {
+    background: var(--acc);
+    border-color: var(--acc);
+    color: #fff;
+}
 
-.btn-excel { background: #dcfce7; color: #166534; }
-.btn-excel:hover { background: #bbf7d0; }
+.btn-web:hover {
+    background: #1a5fd0;
+    border-color: #1a5fd0;
+}
 
-.btn-web { background: #f3e8ff; color: #6b21a8; }
-.btn-web:hover { background: #e9d5ff; }
+/* small colour dot = file type */
+.btn-pdf::before, .btn-excel::before, .btn-smath::before {
+    content: "";
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 6px;
+    vertical-align: 1px;
+}
+.btn-pdf::before   { background: #c0392b; }
+.btn-excel::before { background: #1e8e4e; }
+.btn-smath::before { background: #5b5fc7; }
 
+.btn-soon {
+    color: var(--mute);
+    border-style: dashed;
+    cursor: default;
+}
+
+.btn-soon:hover {
+    background: #fff;
+    border-color: #b9c2cc;
+}
+
+/* fixed layout of the buttons: PDF and Excel/SMath side by side, HTML on its own row */
+.btn-pdf, .btn-excel, .btn-smath { flex: 1 1 0; min-width: 0; }
+.btn-web { flex-basis: 100%; }
+
+/* placeholder of a file type: keep the coloured dot, but faded */
+.btn-soon::before { opacity: .45; }
+
+.file {
+    font-family: Consolas, Menlo, monospace;
+    font-size: 11px;
+    color: var(--mute);
+    margin-top: 10px;
+    word-break: break-all;
+}
+
+/* ---------- Footer ---------- */
 footer {
-    background: #1e293b;
-    color: #94a3b8;
+    background: var(--card);
+    border-top: 1px solid var(--line);
+    color: var(--mute);
     text-align: center;
-    padding: 20px 0;
-    font-size: 0.9rem;
+    padding: 16px 0;
+    font-size: 0.85rem;
     margin-top: auto;
 }
