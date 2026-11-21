@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bolted timber connection in tension, two outer members to one middle member – EN vs prEN</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+ <div class="head">
+  <a href="../../index.html">← All examples</a>
+  <h1>Bolted timber-to-timber connection in tension – two outer members to one middle member</h1>
+ </div>
+
+ <div class="summary" id="summary"></div>
+
+ <div class="views" id="views">
+  <figure><div id="vFront"></div><figcaption>Front view</figcaption></figure>
+  <figure><div id="vSide"></div><figcaption>Side view (section through the joint)</figcaption></figure>
+  <figure><div id="vPlan"></div><figcaption>Plan view</figcaption></figure>
+  <p class="vnote">Half of the connection: the two outer members continue to the left, the middle member continues to the right towards the second half of the joint, which is a mirror image. Timber is shown in two shades (outer and middle members), steel parts in grey. Schematic, drawn from the input values.</p>
+ </div>
+
+ <div class="cols">
+  <!-- LEFT: inputs -->
+  <div class="col c-in">
+   <h2>Inputs</h2>
+   <fieldset><legend>Members (all loaded parallel to grain)</legend>
+    <div class="row"><label for="cls1">Outer members, class</label><select id="cls1"></select></div>
+    <div class="row"><label for="t1">Outer thickness, each</label><div><input id="t1" type="number" min="10" step="1"> <span class="u">mm</span></div></div>
+    <div class="row"><label for="cls2">Middle member, class</label><select id="cls2"></select></div>
+    <div class="row"><label for="t2">Middle thickness</label><div><input id="t2" type="number" min="10" step="1"> <span class="u">mm</span></div></div>
+    <div class="row"><label for="h">Member width h (across grain)</label><div><input id="h" type="number" min="20" step="1"> <span class="u">mm</span></div></div>
+   </fieldset>
+   <fieldset><legend>Bolts</legend>
+    <div class="row"><label for="d">Diameter d</label><div><input id="d" type="number" min="6" max="30" step="1"> <span class="u">mm</span></div></div>
+    <div class="row"><label for="steel">Steel grade</label><select id="steel"></select></div>
+    <div class="row"><label for="n">Bolts per row (along grain)</label><input id="n" type="number" min="1" step="1"></div>
+    <div class="row"><label for="m">Number of rows</label><input id="m" type="number" min="1" step="1"></div>
+    <div class="row"><label for="dw">Washer diameter d<sub>w</sub></label><div><input id="dw" type="number" min="0" step="1" placeholder="3.4·d"> <span class="u">mm</span></div></div>
+   </fieldset>
+   <fieldset><legend>Spacings and distances</legend>
+    <div class="row"><label for="a1">a1 along grain</label><div><input id="a1" type="number" min="0" step="1"> <span class="u">mm</span></div></div>
+    <div class="row"><label for="a2">a2 across grain</label><div><input id="a2" type="number" min="0" step="1"> <span class="u">mm</span></div></div>
+    <div class="row"><label for="a3">a3,t loaded end</label><div><input id="a3" type="number" min="0" step="1"> <span class="u">mm</span></div></div>
+    <div class="row"><label for="a4">a4,c unloaded edge</label><div><input id="a4" type="number" min="0" step="1"> <span class="u">mm</span></div></div>
+   </fieldset>
+   <fieldset><legend>Action and conditions</legend>
+    <div class="row"><label for="Ed">Design tension force Ed</label><div><input id="Ed" type="number" min="0" step="1"> <span class="u">kN</span></div></div>
+    <div class="row"><label for="ld">Load duration class</label><select id="ld"></select></div>
+    <div class="row"><label for="sc">Service class</label><select id="sc"></select></div>
+   </fieldset>
+   <div class="toolbar">
+    <button type="button" class="primary wide" id="btnSave">Download offline copy</button>
+    <button type="button" class="wide" id="btnPrint">Print / save as PDF</button>
+    <button type="button" id="btnExample">Load worked example</button>
+    <button type="button" id="btnClear">Clear all</button>
+   </div>
+   <p class="cap" id="saveMsg"></p>
+   <p class="cap">The member width h, the washer diameter and the bolt hole (d + 1 mm) are used by the prEN check only.</p>
+  </div>
+
+  <!-- MIDDLE: EN -->
+  <div class="col c-en">
+   <h2>Check to the current EN 1995-1-1</h2>
+   <div id="outEN"></div>
+  </div>
+
+  <!-- RIGHT: prEN -->
+  <div class="col c-pren">
+   <h2>Check to the proposed prEN 1995-1-1</h2>
+   <div class="banner" id="bannerPren"></div>
+   <div id="outPREN"></div>
+  </div>
+ </div>
+
+ <p class="note">Scope: bolts in double shear, load parallel to grain, one k<sub>mod</sub> for both materials (solid timber or glued laminated timber). The EN column checks the bolt group only (rope effect neglected). The prEN column also checks the net cross-section and block shear, and counts the rope effect. Not included in the prEN column yet: axial force in the bolts from the eccentricity (11.3.8.7), row and plug shear, staggered bolts. Where the prEN clause number is not shown, it still has to be added. Always verify the National Annex and the current text of the standard.</p>
+ <p class="note" id="mjstatus"></p>
+</div>
+
+<script id="saved" type="application/json">null</script>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', scale: 0.92, displayAlign: 'left' },
+  options: { enableMenu: false },
+  startup: { typeset: false }
+};
+</script>
+<!--MATHJAX-->
+<script src="core.js"></script>
+<script src="en.js"></script>
+<script src="pren.js"></script>
+<script src="views.js"></script>
+<script src="math.js"></script>
+<script src="offline.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
